@@ -1,0 +1,135 @@
+#!/bin/sh
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+
+echo "== Neonatox Live Boot =="
+
+# --------------------------------------------------
+# Consola y sistemas virtuales
+# --------------------------------------------------
+mount -t devtmpfs devtmpfs /dev
+[ -c /dev/console ] || mknod /dev/console c 5 1
+exec </dev/console >/dev/console 2>&1
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+
+echo "[OK] basic mounts ready"
+
+# --------------------------------------------------
+# Crear nodos loop (devtmpfs no los crea)
+# --------------------------------------------------
+for i in 0 1 2 3 4 5 6 7; do
+    [ -b /dev/loop$i ] || mknod /dev/loop$i b 7 $i
+done
+
+# --------------------------------------------------
+# Cargar módulos necesarios
+# --------------------------------------------------
+for m in \
+    cdrom sd_mod sr_mod \
+    loop squashfs overlay \
+    usb-storage uas \
+    ahci libata \
+    hid hid-generic usbhid \
+    i8042 atkbd libps2
+do
+    modprobe $m 2>/dev/null
+done
+
+# --------------------------------------------------
+# Forzar detección de dispositivos
+# --------------------------------------------------
+echo "[INFO] rescanning SCSI hosts..."
+for host in /sys/class/scsi_host/host*; do
+    echo "- - -" > "$host/scan"
+done
+
+sleep 1
+mdev -s
+
+# --------------------------------------------------
+# Buscar rootfs.squashfs
+# --------------------------------------------------
+ISO_MNT="/mnt/iso"
+mkdir -p "$ISO_MNT"
+FOUND_DEV=""
+
+echo "[INFO] searching for rootfs.squashfs..."
+
+for DEV in \
+    /dev/sr0 \
+    /dev/sd?? \
+    /dev/sd? \
+    /dev/nvme?n?p? \
+    /dev/mmcblk?p?
+do
+    [ -e "$DEV" ] || continue
+
+    echo "  trying $DEV"
+    mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
+
+    if [ -f "$ISO_MNT/rootfs.squashfs" ]; then
+        FOUND_DEV="$DEV"
+        break
+    fi
+
+    umount "$ISO_MNT"
+done
+
+if [ -z "$FOUND_DEV" ]; then
+    echo "[FATAL] rootfs.squashfs not found"
+    exec sh
+fi
+
+echo "[OK] found rootfs on $FOUND_DEV"
+
+# ---------------------------------------------
+# Mount squashfs
+# ---------------------------------------------
+mkdir -p /mnt/ro_root
+
+mount -t squashfs -o loop "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || {
+    echo "[FATAL] cannot mount squashfs"
+    exec sh
+}
+
+echo "[OK] squashfs mounted"
+
+# ---------------------------------------------
+# OverlayFS
+# ---------------------------------------------
+mkdir -p /mnt/ram
+mkdir -p /mnt/newroot
+
+mount -t tmpfs tmpfs /mnt/ram || {
+    echo "[FATAL] tmpfs mount failed"
+    exec sh
+}
+
+mkdir -p /mnt/ram/upper
+mkdir -p /mnt/ram/work
+
+mount -t overlay overlay \
+    -o lowerdir=/mnt/ro_root,upperdir=/mnt/ram/upper,workdir=/mnt/ram/work \
+    /mnt/newroot || {
+        echo "[FATAL] overlay mount failed"
+        exec sh
+    }
+
+echo "[OK] overlay mounted"
+
+# --------------------------------------------------
+# Mover sistemas virtuales
+# --------------------------------------------------
+mount --move /proc /mnt/newroot/proc
+mount --move /sys  /mnt/newroot/sys
+mount --move /dev  /mnt/newroot/dev
+
+# --------------------------------------------------
+# Arranque final
+# --------------------------------------------------
+echo "[BOOT] switching root"
+exec switch_root /mnt/newroot /sbin/init
+
+echo "[FATAL] switch_root failed"
+exec sh

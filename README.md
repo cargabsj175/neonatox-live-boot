@@ -1,7 +1,7 @@
 [![License: GPLv3+](https://img.shields.io/badge/license-GPLv3%2B-blue.svg)](LICENSE)[![Language: Bash](https://img.shields.io/badge/language-Bash-green.svg)](https://www.gnu.org/software/bash/)[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cargabsj175/neonatox-live-boot)
 
 
-Neonatox Live Boot+
+Neonatox Live Boot
 ====================
 
 **Neonatox Live Boot** is a from-scratch **Linux Live ISO builder** designed to create lightweight, customizable bootable images based on a snapshot of your current system. Ideal for custom distributions, rescue tools, installers, or ephemeral environments.
@@ -22,7 +22,7 @@ Neonatox Live Boot+
 
 1.  Clone this repository:
     
-        git clone https://github.com/your-username/neonatox-live.git
+        git clone https://github.com/cargabsj175/neonatox-live-boot.git
         cd neonatox-live
     
 2.  Install required dependencies:

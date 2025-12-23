@@ -55,8 +55,8 @@ EXCLUDES="
 /dev
 /run
 /tmp
-/media
-/mnt
+/media/*
+/mnt/*
 /lost+found
 /swapfile
 /var/log/*
@@ -65,8 +65,6 @@ EXCLUDES="
 /home/*/.cache/*
 /home/*/.local/share/Trash/*
 /home/*/.mozilla/*/cache2/*
-/NeonatoX_2026
-/sources
 /usr/src/*
 "
 
@@ -214,12 +212,12 @@ cp "$MODDIR/modules.order"   "$DEST/" 2>/dev/null || true
 cp "$MODDIR/modules.builtin" "$DEST/" 2>/dev/null || true
 
 # Generar dependencias
-depmod -b "$INITRAMFS" "$FULLVER"
+depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null
 
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
 
 echo "[OK] Packing initramfs..."
-( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG"
+( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG" 2>/dev/null
 
 # ----------------------------------------------------------
 # GRUB LOOPBACK CONFIG
@@ -247,8 +245,7 @@ terminal_output gfxterm
 
 background_image /boot/grub/theme/background.png
 
-menuentry "* ${ISO_NAME} Live - ${VERSION} (${ARCH})" {
-  
+menuentry "${ISO_NAME} Live - ${VERSION} (${ARCH})" {
     linux /boot/vmlinuz quiet
     initrd /boot/initramfs.img
 }

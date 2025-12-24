@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="602"
+   height="927.25977"
+   viewBox="0 0 602 927.25977"
+   font-family="monospace"
+   version="1.1"
+   id="svg22"
+   sodipodi:docname="boot-flow.svg"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview22"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.90222222"
+     inkscape:cx="300.92365"
+     inkscape:cy="515.39409"
+     inkscape:window-width="1920"
+     inkscape:window-height="1029"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg22" />
+  <defs
+     id="defs1">
+    <style
+       id="style1">
+      .box {
+        fill: #f9f9f9;
+        stroke: #333;
+        stroke-width: 2;
+        rx: 10;
+        ry: 10;
+      }
+      .title {
+        font-size: 20px;
+        font-weight: bold;
+      }
+      .text {
+        font-size: 14px;
+      }
+      .arrow {
+        stroke: #333;
+        stroke-width: 2;
+        marker-end: url(#arrowhead);
+      }
+    </style>
+    <marker
+       id="arrowhead"
+       markerWidth="10"
+       markerHeight="7"
+       refX="10"
+       refY="3.5"
+       orient="auto">
+      <polygon
+         points="10,3.5 0,7 0,0 "
+         fill="#333333"
+         id="polygon1" />
+    </marker>
+  </defs>
+  <!-- Title -->
+  <text
+     x="301"
+     y="16.259766"
+     text-anchor="middle"
+     class="title"
+     id="text1">Neonatox Live Boot – Complete Boot Flow</text>
+  <!-- Firmware -->
+  <rect
+     x="151"
+     y="56.259766"
+     width="300"
+     height="60"
+     class="box"
+     id="rect1" />
+  <text
+     x="301"
+     y="91.259766"
+     text-anchor="middle"
+     class="text"
+     id="text2">Firmware (BIOS / UEFI)</text>
+  <!-- GRUB -->
+  <rect
+     x="151"
+     y="146.25977"
+     width="300"
+     height="60"
+     class="box"
+     id="rect2" />
+  <text
+     x="301"
+     y="181.25977"
+     text-anchor="middle"
+     class="text"
+     id="text3">GRUB Bootloader</text>
+  <!-- Kernel -->
+  <rect
+     x="151"
+     y="236.25977"
+     width="300"
+     height="70"
+     class="box"
+     id="rect3" />
+  <text
+     x="301"
+     y="271.25977"
+     text-anchor="middle"
+     class="text"
+     id="text4">Linux Kernel</text>
+  <text
+     x="301"
+     y="291.25977"
+     text-anchor="middle"
+     class="text"
+     id="text5">vmlinuz + initramfs.img</text>
+  <!-- Initramfs -->
+  <rect
+     x="101"
+     y="346.25977"
+     width="400"
+     height="110"
+     class="box"
+     id="rect5" />
+  <text
+     x="301"
+     y="376.25977"
+     text-anchor="middle"
+     class="text"
+     id="text6">Initramfs (/init)</text>
+  <text
+     x="301"
+     y="401.25977"
+     text-anchor="middle"
+     class="text"
+     id="text7">• Mount /proc /sys /run</text>
+  <text
+     x="301"
+     y="421.25977"
+     text-anchor="middle"
+     class="text"
+     id="text8">• Load modules (SATA / USB / NVMe / input)</text>
+  <text
+     x="301"
+     y="441.25977"
+     text-anchor="middle"
+     class="text"
+     id="text9">• Scan devices + mdev</text>
+  <!-- rootfs detection -->
+  <rect
+     x="51"
+     y="496.25977"
+     width="500"
+     height="90"
+     class="box"
+     id="rect9" />
+  <text
+     x="301"
+     y="526.25977"
+     text-anchor="middle"
+     class="text"
+     id="text10">Locate rootfs.squashfs</text>
+  <text
+     x="301"
+     y="551.25977"
+     text-anchor="middle"
+     class="text"
+     id="text11">Probe CD / NVMe / SATA / USB / IDE</text>
+  <!-- squashfs -->
+  <rect
+     x="51"
+     y="626.25977"
+     width="500"
+     height="80"
+     class="box"
+     id="rect11" />
+  <text
+     x="301"
+     y="656.25977"
+     text-anchor="middle"
+     class="text"
+     id="text12">Mount squashfs (read-only)</text>
+  <text
+     x="301"
+     y="681.25977"
+     text-anchor="middle"
+     class="text"
+     id="text13">/mnt/ro_root</text>
+  <!-- overlay -->
+  <rect
+     x="1"
+     y="736.25977"
+     width="600"
+     height="100"
+     class="box"
+     id="rect13" />
+  <text
+     x="301"
+     y="771.25977"
+     text-anchor="middle"
+     class="text"
+     id="text14">OverlayFS (Live Root)</text>
+  <text
+     x="301"
+     y="796.25977"
+     text-anchor="middle"
+     class="text"
+     id="text15">lower = squashfs | upper + work = tmpfs</text>
+  <text
+     x="301"
+     y="821.25977"
+     text-anchor="middle"
+     class="text"
+     id="text16">Result: /mnt/newroot (writable)</text>
+  <!-- systemd -->
+  <rect
+     x="151"
+     y="856.25977"
+     width="300"
+     height="70"
+     class="box"
+     id="rect16" />
+  <text
+     x="301"
+     y="891.25977"
+     text-anchor="middle"
+     class="text"
+     id="text17">switch_root → systemd (PID 1)</text>
+  <!-- Arrows -->
+  <line
+     x1="301"
+     y1="116.25977"
+     x2="301"
+     y2="146.25977"
+     class="arrow"
+     id="line17" />
+  <line
+     x1="301"
+     y1="206.25977"
+     x2="301"
+     y2="236.25977"
+     class="arrow"
+     id="line18" />
+  <line
+     x1="301"
+     y1="306.25977"
+     x2="301"
+     y2="346.25977"
+     class="arrow"
+     id="line19" />
+  <line
+     x1="301"
+     y1="456.25977"
+     x2="301"
+     y2="496.25977"
+     class="arrow"
+     id="line20" />
+  <line
+     x1="301"
+     y1="586.25977"
+     x2="301"
+     y2="626.25977"
+     class="arrow"
+     id="line21" />
+  <line
+     x1="301"
+     y1="706.25977"
+     x2="301"
+     y2="736.25977"
+     class="arrow"
+     id="line22" />
+</svg>

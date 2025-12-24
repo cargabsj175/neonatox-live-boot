@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Debugging - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Debugging and Lessons Learned</h1>
+
+<h2>Most Important Lessons</h2>
+
+<ul>
+  <li>Do not assume devices exist</li>
+  <li>sysfs tells the truth</li>
+  <li>/dev problems surface later in systemd</li>
+  <li>dbus errors are often /dev or /run issues</li>
+</ul>
+
+<h2>Why This Took Iteration</h2>
+
+<p>
+Live boot systems fail silently.
+Most issues only appear several stages later.
+</p>
+
+<p>
+The only reliable way to build one is iterative testing.
+</p>
+
+<h2>Final Result</h2>
+
+<p>
+Neonatox Live Boot successfully demonstrates:
+</p>
+
+<ul>
+  <li>A minimal initramfs</li>
+  <li>Reliable media detection</li>
+  <li>Correct systemd handoff</li>
+  <li>A clean, writable live environment</li>
+</ul>
+
+<p>
+Most importantly, it is understandable.
+</p>
+
+</body>
+</html>

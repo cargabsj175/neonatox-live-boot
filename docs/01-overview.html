@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Overview - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Overview & Philosophy</h1>
+
+<h2>What Neonatox Live Boot Is</h2>
+
+<p>
+Neonatox Live Boot is a handcrafted live boot system that builds a complete
+Linux live environment using:
+</p>
+
+<ul>
+  <li>A custom initramfs</li>
+  <li>A squashfs root filesystem</li>
+  <li>OverlayFS for a writable runtime layer</li>
+  <li>systemd as PID 1</li>
+</ul>
+
+<p>
+Unlike automated systems, every stage of the boot process is explicit and
+under developer control.
+</p>
+
+<h2>What This Project Is Not</h2>
+
+<p>
+Neonatox Live Boot intentionally avoids:
+</p>
+
+<ul>
+  <li>dracut</li>
+  <li>live-build</li>
+  <li>initramfs generators with opaque logic</li>
+</ul>
+
+<p>
+This is not because those tools are bad, but because they hide the learning
+process.
+</p>
+
+<h2>Educational First, Practical Second</h2>
+
+<p>
+The primary goal is education. However, the final system is robust enough
+to boot from:
+</p>
+
+<ul>
+  <li>USB</li>
+  <li>CD/DVD</li>
+  <li>Virtual machines</li>
+  <li>IDE, SATA, NVMe, and USB storage</li>
+</ul>
+
+<p>
+The design choices are explained throughout this documentation, including
+mistakes made during development and how they were resolved.
+</p>
+
+</body>
+</html>

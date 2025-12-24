@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Initramfs Design - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Initramfs Design</h1>
+
+<h2>Purpose of the Initramfs</h2>
+
+<p>
+The initramfs is not a mini-root filesystem intended to stay alive.
+Its only job is to:
+</p>
+
+<ul>
+  <li>Detect boot media</li>
+  <li>Mount the real root filesystem</li>
+  <li>Hand control to the real init system</li>
+</ul>
+
+<p>
+Everything else is intentionally minimal.
+</p>
+
+<h2>Why BusyBox</h2>
+
+<p>
+BusyBox is used because:
+</p>
+
+<ul>
+  <li>It provides a predictable shell environment</li>
+  <li>It avoids dependency chains</li>
+  <li>It keeps the initramfs small and deterministic</li>
+</ul>
+
+<p>
+Importantly, BusyBox does <strong>not</strong> provide a full device manager.
+This is a design choice, not a limitation.
+</p>
+
+<h2>/dev Handling Strategy</h2>
+
+<p>
+One of the most critical lessons learned during development was that
+device management must be staged.
+</p>
+
+<h3>What Was Tried (and Failed)</h3>
+
+<ul>
+  <li>Mounting devtmpfs too early</li>
+  <li>Relying on hotplug helpers</li>
+  <li>Expecting /dev to populate automatically</li>
+</ul>
+
+<p>
+These approaches resulted in:
+</p>
+
+<ul>
+  <li>Missing block devices</li>
+  <li>Broken dbus later in systemd</li>
+  <li>Non-interactive consoles</li>
+</ul>
+
+<h3>The Working Model</h3>
+
+<p>
+Neonatox Live Boot uses:
+</p>
+
+<ul>
+  <li>Static device nodes created at build time</li>
+  <li>devtmpfs only when preparing the final root</li>
+  <li>mdev only for minimal rescans</li>
+</ul>
+
+<p>
+This ensures that:
+</p>
+
+<ul>
+  <li>/dev is usable before systemd starts</li>
+  <li>systemd can take full control later</li>
+</ul>
+
+<h2>Why /proc/sys/kernel/hotplug Is Not Used</h2>
+
+<p>
+Modern kernels no longer rely on <code>/proc/sys/kernel/hotplug</code>.
+Attempting to use it results in:
+</p>
+
+<pre>
+sh: /proc/sys/kernel/hotplug: No such file or directory
+</pre>
+
+<p>
+This project intentionally avoids legacy hotplug mechanisms.
+</p>
+
+</body>
+</html>

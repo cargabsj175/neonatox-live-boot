@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Device Detection - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Device Detection</h1>
+
+<h2>The Core Problem</h2>
+
+<p>
+The most difficult part of a live system is not mounting squashfs.
+It is reliably finding it.
+</p>
+
+<p>
+Many systems assume:
+</p>
+
+<ul>
+  <li>/dev/sr0 exists</li>
+  <li>/dev/sda1 exists</li>
+  <li>udev is running</li>
+</ul>
+
+<p>
+None of these assumptions are valid in early initramfs.
+</p>
+
+<h2>What the Kernel Actually Provides</h2>
+
+<p>
+In early boot, the kernel exposes devices primarily via:
+</p>
+
+<ul>
+  <li>/sys/class</li>
+  <li>/sys/block</li>
+</ul>
+
+<p>
+If a device exists in sysfs but not in /dev, the problem is userspace,
+not the kernel.
+</p>
+
+<h2>Why mdev Is Used Carefully</h2>
+
+<p>
+mdev is used only to populate minimal device nodes after:
+</p>
+
+<ul>
+  <li>Modules are loaded</li>
+  <li>SCSI buses are rescanned</li>
+</ul>
+
+<p>
+Blind reliance on mdev was found to be insufficient.
+</p>
+
+<h2>Multi-Pass Detection Strategy</h2>
+
+<p>
+Neonatox Live Boot performs:
+</p>
+
+<ul>
+  <li>Multiple detection passes</li>
+  <li>Short delays between passes</li>
+  <li>Ordered probing of devices</li>
+</ul>
+
+<p>
+The probing order is intentional:
+</p>
+
+<ol>
+  <li>Optical media</li>
+  <li>NVMe devices</li>
+  <li>SATA / USB disks</li>
+  <li>Legacy IDE</li>
+</ol>
+
+<h2>Why This Matters</h2>
+
+<p>
+This approach:
+</p>
+
+<ul>
+  <li>Works on real hardware</li>
+  <li>Works on VirtualBox and QEMU</li>
+  <li>Does not require udev</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>systemd Handoff - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>systemd Handoff</h1>
+
+<h2>systemd as PID 1</h2>
+
+<p>
+systemd requires a properly prepared environment.
+Failing to do so results in degraded boots or silent failures.
+</p>
+
+<h2>Common Failure Symptoms</h2>
+
+<ul>
+  <li>systemctl reports degraded</li>
+  <li>dbus fails to start</li>
+  <li>TTY shows no login</li>
+</ul>
+
+<h2>Required Conditions</h2>
+
+<ul>
+  <li>/dev/null must exist and be writable</li>
+  <li>/dev/console must exist</li>
+  <li>/run must be writable</li>
+  <li>machine-id must exist</li>
+  <li>devpts must be mounted</li>
+</ul>
+
+<h2>Why systemd Was Not Verbose</h2>
+
+<p>
+In a live environment, systemd does not behave exactly like an installed system.
+</p>
+
+<p>
+This is normal and expected. Verbosity depends on:
+</p>
+
+<ul>
+  <li>Kernel command line</li>
+  <li>Logging targets</li>
+  <li>Presence of persistent storage</li>
+</ul>
+
+<p>
+The key indicator of success is:
+</p>
+
+<pre>
+systemctl is-system-running
+running
+</pre>
+
+</body>
+</html>

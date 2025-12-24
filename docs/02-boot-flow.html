@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Boot Flow - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Boot Flow</h1>
+
+<p>
+This section describes the complete boot sequence from firmware to systemd.
+</p>
+
+<h2>High-Level Flow</h2>
+
+<pre>
+Firmware (BIOS/UEFI)
+        ↓
+GRUB
+        ↓
+Linux Kernel
+        ↓
+Initramfs (/init)
+        ↓
+rootfs.squashfs
+        ↓
+OverlayFS
+        ↓
+switch_root
+        ↓
+systemd (PID 1)
+</pre>
+
+<h2>Why GRUB</h2>
+
+<p>
+GRUB is used instead of syslinux primarily for flexibility and modern firmware
+support. While linux-live traditionally uses syslinux, GRUB is widely available
+and easier to integrate with EFI systems.
+</p>
+
+<h2>Kernel Responsibilities</h2>
+
+<p>
+The kernel initializes hardware, mounts the initramfs as a temporary root,
+and executes the <code>/init</code> script.
+</p>
+
+<h2>Initramfs Responsibilities</h2>
+
+<ul>
+  <li>Load minimal drivers</li>
+  <li>Detect the boot medium</li>
+  <li>Mount the squashfs root filesystem</li>
+  <li>Create an overlay filesystem</li>
+  <li>Prepare a clean environment for systemd</li>
+</ul>
+
+</body>
+</html>

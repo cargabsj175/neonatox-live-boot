@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OverlayFS - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>OverlayFS and Root Filesystem</h1>
+
+<h2>Why OverlayFS</h2>
+
+<p>
+A live system must appear writable while keeping its base immutable.
+OverlayFS provides this cleanly and efficiently.
+</p>
+
+<h2>Critical Discovery</h2>
+
+<p>
+An important discovery during development was:
+</p>
+
+<blockquote>
+Mounting tmpfs before creating overlay directories causes them to disappear.
+</blockquote>
+
+<p>
+The correct order is:
+</p>
+
+<ol>
+  <li>Mount tmpfs</li>
+  <li>Create upper and work directories</li>
+  <li>Mount overlay</li>
+</ol>
+
+<h2>Overlay Layout</h2>
+
+<pre>
+lowerdir = squashfs (read-only)
+upperdir = tmpfs (writable)
+workdir  = tmpfs (overlay metadata)
+</pre>
+
+<p>
+This layout allows a fully writable runtime system while keeping the
+original squashfs untouched.
+</p>
+
+</body>
+</html>

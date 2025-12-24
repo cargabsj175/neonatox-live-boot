@@ -2,8 +2,8 @@
 set -e
 
 # ==========================================================
-# Neonatox Live Builder - Full System Mirror ISO
-# BIOS + UEFI + LOOPBACK GRUB
+# Neonatox Live Boot Builder - your distro to bootable iso
+# BIOS + UEFI + GRUB
 # ==========================================================
 
 PATH=/sbin:/bin
@@ -46,6 +46,11 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 # ----------------------------------------------------------
 # MAKE ROOTFS SQUASHFS
 # ----------------------------------------------------------
+clear
+echo "================================================================"
+echo "===== Neonatox Live Boot - v0.3 Carlos Sanchez - 2007-2026 ====="
+echo "================================================================"
+
 echo "[OK] Creating squashfs rootfs"
 
 EXCLUDES="
@@ -184,19 +189,15 @@ kernel/drivers/scsi/sr_mod.ko*
 kernel/drivers/cdrom/cdrom.ko*
 kernel/drivers/usb/storage/usb-storage.ko*
 kernel/drivers/ata/ahci.ko*
-
 kernel/fs/squashfs/squashfs.ko*
 kernel/fs/overlayfs/overlay.ko*
-
 kernel/drivers/hid/hid.ko*
 kernel/drivers/hid/hid-generic.ko*
 kernel/drivers/hid/usbhid/usbhid.ko*
-
 kernel/drivers/input/serio/i8042.ko*
 kernel/drivers/input/keyboard/atkbd.ko*
 kernel/drivers/input/serio/libps2.ko*
 "
-
 
 for m in $NEEDED_MODULES; do
     if [ -f "$MODDIR/$m" ]; then
@@ -220,7 +221,7 @@ echo "[OK] Packing initramfs..."
 ( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG" 2>/dev/null
 
 # ----------------------------------------------------------
-# GRUB LOOPBACK CONFIG
+# GRUB CONFIG
 # ----------------------------------------------------------
 cp /usr/share/grub/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
     || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2"
@@ -245,11 +246,15 @@ terminal_output gfxterm
 
 background_image /boot/grub/theme/background.png
 
-menuentry "${ISO_NAME} Live - ${VERSION} (${ARCH})" {
+menuentry "${ISO_NAME} ${VERSION} live" {
     linux /boot/vmlinuz quiet
     initrd /boot/initramfs.img
 }
 
+menuentry "${ISO_NAME} ${VERSION} live (DEBUG)" {
+    linux /boot/vmlinuz debug=1 loglevel=7
+    initrd /boot/initramfs.img
+}
     
 }
 EOF

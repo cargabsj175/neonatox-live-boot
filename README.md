@@ -35,25 +35,28 @@ Key Features
 Repository Structure
 --------------------
 ```
-neonatox-live-boot/
-├── build.sh              → Main ISO build script
-├── initramfs/
-│   ├── busybox           → Static BusyBox binary
-│   └── init              → Initramfs init script
-├── iso/
-│   └── background.png    → GRUB background image
-├── docs/
-│   ├── boot-flow.svg     → Visual boot diagram
-│   ├── initramfs-design.html
-│   ├── device-detection.html
-│   ├── overlayfs.html
-│   ├── systemd-handoff.html
-│   └── debugging.html
-└── README.html
+./neonatox-live-boot
+├── build.sh
+├── docs
+│   ├── 01-overview.html
+│   ├── 02-boot-flow.html
+│   ├── 03-initramfs-design.html
+│   ├── 04-device-detection.html
+│   ├── 05-overlayfs.html
+│   ├── 06-systemd-handoff.html
+│   ├── 07-debugging.html
+│   ├── 08-ventoy-support.html
+│   └── README.html
+├── initramfs
+│   ├── busybox
+│   └── init
+├── iso
+│   └── background.png
+├── output
+│   └── *.iso
+└── README.md
+
 ```
-
-The `output/` directory is intentionally ignored, as it only contains generated ISO images.
-
 * * *
 
 How It Works (High-Level)

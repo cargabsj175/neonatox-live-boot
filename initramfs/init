@@ -1,16 +1,33 @@
 #!/bin/sh
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
+[ "$debug" = "1" ] && set -x
 
 echo "================================================================"
-echo "===== Neonatox Live Boot - v0.3 Carlos Sanchez - 2007-2026 ====="
+echo "===== Neonatox Live Boot - v0.4 Carlos Sanchez - 2007-2026 ====="
 echo "================================================================"
+
+# --------------------------------------------------
+# Core functions
+# --------------------------------------------------
+emergency_shell() {
+    echo "[EMERGENCY] Dropping to shell"
+    exec sh
+}
 
 # --------------------------------------------------
 # Config
 # --------------------------------------------------
-[ "$debug" = "1" ] && set -x
 ISO_MNT="/mnt/iso"
+ISO_TEST="/mnt/iso_test"
 FOUND_DEV=""
+VENTOY_MODE=0
+
+# Checking if rootfs.sha256 exists
+if [ ! -f /rootfs.sha256 ]; then
+    echo "[ERROR] rootfs.sha256 missing"
+    emergency_shell
+fi
+ROOTFS_HASH="$(cat /rootfs.sha256)"
 
 # --------------------------------------------------
 # 1. Console and virtual filesystem
@@ -24,92 +41,141 @@ mount -t tmpfs tmpfs /run
 echo "[OK] basic mounts ready"
 
 # --------------------------------------------------
-# 2. Create loop nodes
+# 2. Create loop devices
 # --------------------------------------------------
 for i in 0 1 2 3 4 5 6 7; do
     [ -b /dev/loop$i ] || mknod /dev/loop$i b 7 $i
 done
 
 # --------------------------------------------------
-# 3. Load necessary modules
+# 3. Load modules
 # --------------------------------------------------
-ESSENTIAL_MODULES="cdrom sd_mod sr_mod loop squashfs overlay usb-storage uas ahci libata"
-LEGACY_MODULES="ata_piix pata_generic"  # old IDE
-NVME_MODULES="nvme nvme_core"           # modern NVMe
-HID_MODULES="hid-generic usbhid i8042 atkbd libps2"  # Keyboard
+FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3"
+MEDIA="loop cdrom sd_mod sr_mod usb-storage uas ahci libata" # Core devices
+LEGACY="ata_piix pata_generic" # old IDE
+NVME="nvme nvme_core" # modern NVMe
+HID="hid-generic usbhid i8042 atkbd libps2" # Keyboard
 
-for m in $ESSENTIAL_MODULES $LEGACY_MODULES $NVME_MODULES $HID_MODULES; do
+for m in $FILESYSTEMS $MEDIA $LEGACY $NVME $HID; do
     modprobe $m 2>/dev/null
 done
 
-sleep 1
+sleep 0.5
 mdev -s
 
 # --------------------------------------------------
-# 4. Smart Scan (3 fast attempts)
+# 4. Detect Ventoy environment
+# --------------------------------------------------
+
+if [ -d /ventoy ] || [ -d /vtoy ]; then
+    echo "[INFO] Ventoy environment detected"
+    VENTOY_MODE=1
+fi
+
+# --------------------------------------------------
+# 5. Scan devices (3 attempts)
 # --------------------------------------------------
 echo "[INFO] scanning for boot media..."
 
 for attempt in 1 2 3; do
     echo "  attempt $attempt/3"
-    
+
     # NVMe doesn't need scanning, just wait a little while
     [ $attempt -eq 1 ] && sleep 0.5
-    
     # SCSI scan (SATA, USB)
     for host in /sys/class/scsi_host/host*; do
         echo "- - -" > "$host/scan" 2>/dev/null || true
     done
-    
-    sleep 1
+
+    sleep 0.5
     mdev -s
-    
+
     # Search in ORDER: CD/DVD first, then partitions
     for DEV in \
-        /dev/sr*  \
+        /dev/sr* \
         /dev/nvme*n*p* /dev/nvme*n \
         /dev/sd* \
         /dev/hd* \
         /dev/mmcblk*p* /dev/mmcblk*
     do
         [ -e "$DEV" ] || continue
-        
-        case "$DEV" in
-            /dev/hd*) sleep 1 ;;  # IDE (slow)
-        esac
-        
-        echo "    checking $DEV"
-        if mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null; then
-            if [ -f "$ISO_MNT/rootfs.squashfs" ]; then
-                FOUND_DEV="$DEV"
+
+        echo "    probing $DEV"
+        mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
+
+        # --------------------------------------------------
+        # A) Normal ISO (rootfs directly)
+        # --------------------------------------------------
+        if [ -f "$ISO_MNT/rootfs.squashfs" ]; then
+            FOUND_DEV="$DEV"
                 break 2  # Break both loops
+        fi
+        # --------------------------------------------------
+        # B) Ventoy: partition with ISOs in root
+        # --------------------------------------------------
+        if [ "$VENTOY_MODE" = "1" ]; then
+
+            # ¿Hay ISOs en la raíz de esta partición?
+            if ls "$ISO_MNT"/*.iso >/dev/null 2>&1; then
+                echo "[INFO] ISO partition detected on $DEV"
+        
+                for ISO in "$ISO_MNT"/*.iso; do
+                    echo "      testing ISO $(basename "$ISO")"
+        
+                    LOOP="$(losetup -f --show "$ISO" 2>/dev/null)" || continue
+        
+                    mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
+                        losetup -d "$LOOP"
+                        continue
+                    }
+
+                    if [ -f "$ISO_TEST/rootfs.squashfs" ]; then
+                        HASH="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
+
+                        if [ "$HASH" = "$ROOTFS_HASH" ]; then
+                            echo "[OK] matching ISO found via SHA256"
+                            FOUND_DEV="ventoy_iso"
+                            ISO_MNT="$ISO_TEST"
+                            break 3
+                        fi
+                    fi
+                    if [ "$FOUND_DEV" != "ventoy_iso" ]; then
+                        umount "$ISO_TEST" 2>/dev/null
+                        losetup -d "$LOOP" 2>/dev/null
+                    fi
+                done
             fi
+        fi
+        # Unmount only if it is NOT the correct Ventoy ISO
+        if [ "$FOUND_DEV" != "ventoy_iso" ]; then
             umount "$ISO_MNT" 2>/dev/null || umount -l "$ISO_MNT"
         fi
     done
 done
-
 # --------------------------------------------------
-# 5. Error if not found
+# 6. Fail if not found
 # --------------------------------------------------
 if [ -z "$FOUND_DEV" ]; then
     echo "[ERROR] rootfs.squashfs not found"
-    echo "Available devices:"
-    ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true
-    exec sh  # Emergency Shell
+    # echo "Available devices:"
+    # ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true
+    emergency_shell
 fi
 
 echo "[OK] found boot media at $FOUND_DEV"
 
-# ---------------------------------------------
-# 6. Mount squashfs
-# ---------------------------------------------
+# --------------------------------------------------
+# 7. Mount squashfs
+# --------------------------------------------------
 mkdir -p /mnt/ro_root
 
-mount -t squashfs -o loop "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || {
-    echo "[ERROR] cannot mount squashfs"
-    exec sh
-}
+if [ "$FOUND_DEV" = "ventoy_iso" ]; then
+    echo "[INFO] mounting squashfs from Ventoy ISO"
+    mount -t squashfs "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || emergency_shell
+else
+    echo "[INFO] mounting squashfs from physical media"
+    mount -t squashfs -o loop "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || emergency_shell
+fi
 
 echo "[OK] squashfs mounted"
 
@@ -121,7 +187,7 @@ mkdir -p /mnt/newroot
 
 mount -t tmpfs tmpfs /mnt/ram || {
     echo "[ERROR] tmpfs mount failed"
-    exec sh
+    emergency_shell
 }
 
 mkdir -p /mnt/ram/upper
@@ -131,14 +197,14 @@ mount -t overlay overlay \
     -o lowerdir=/mnt/ro_root,upperdir=/mnt/ram/upper,workdir=/mnt/ram/work \
     /mnt/newroot || {
         echo "[ERROR] overlay mount failed"
-        exec sh
+        emergency_shell
     }
 
 echo "[OK] overlay mounted"
 
-# ---------------------------------------------
-# 8. Fresh virtual filesystems for newroot
-# ---------------------------------------------
+# --------------------------------------------------
+# 9. New root virtual filesystems
+# --------------------------------------------------
 mkdir -p /mnt/newroot/proc
 mkdir -p /mnt/newroot/sys
 mkdir -p /mnt/newroot/dev
@@ -151,16 +217,13 @@ mkdir -p /mnt/newroot/dev/pts
 mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts
 mount -t tmpfs tmpfs /mnt/newroot/run
 
-[ -c /mnt/newroot/dev/console ] || mknod -m 600 /mnt/newroot/dev/console c 5 1
-[ -c /mnt/newroot/dev/null ] || mknod -m 666 /mnt/newroot/dev/null c 1 3
-
-# ---------------------------------------------
-# 9. machine-id (systemd) & minimal fstab
-# ---------------------------------------------
-
-mkdir -p /mnt/newroot/etc
-[ -f /mnt/newroot/etc/machine-id ] || \
-    touch /mnt/newroot/etc/machine-id
+# --------------------------------------------------
+# 10. machine-id (systemd) & minimal fstab
+# --------------------------------------------------
+if [ -x /mnt/newroot/lib/systemd/systemd ]; then
+    mkdir -p /mnt/newroot/etc
+    [ -f /mnt/newroot/etc/machine-id ] || touch /mnt/newroot/etc/machine-id
+fi
 
 cat > /mnt/newroot/etc/fstab <<EOF
 proc  /proc  proc  defaults  0 0
@@ -169,16 +232,20 @@ devpts /dev/pts devpts defaults  0 0
 tmpfs /run   tmpfs defaults  0 0
 EOF
 
-# ---------------------------------------------
-# 10. Switch root (universal)
-# ---------------------------------------------
+# --------------------------------------------------
+# 11. Switch root (universal)
+# --------------------------------------------------
+if [ "$FOUND_DEV" != "ventoy_iso" ]; then
+    umount "$ISO_TEST" 2>/dev/null || true
+fi
+
 if [ -x /mnt/newroot/lib/systemd/systemd ]; then
     echo "[BOOT] starting systemd"
     exec switch_root /mnt/newroot /lib/systemd/systemd
 elif [ -x /mnt/newroot/sbin/init ]; then
-    echo "[BOOT] starting /sbin/init"
+    echo "[BOOT] starting init"
     exec switch_root /mnt/newroot /sbin/init
 else
-    echo "[FATAL] No init found in new root"
-    exec sh
+    echo "[FATAL] no init found"
+    emergency_shell
 fi

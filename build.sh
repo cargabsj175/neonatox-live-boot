@@ -51,8 +51,6 @@ echo "================================================================"
 echo "===== Neonatox Live Boot - v0.4 Carlos Sanchez - 2007-2026 ====="
 echo "================================================================"
 
-echo "[OK] Creating squashfs rootfs"
-
 EXCLUDES="
 /opt/*
 /proc
@@ -73,20 +71,22 @@ EXCLUDES="
 /usr/src/*
 "
 
+echo "[*] Creating squashfs rootfs..." 
 mksquashfs / "$SQUASHFS" \
     -e $(echo $EXCLUDES) \
     -comp xz -noappend
-    
-echo "[OK] generating rootfs checksum"
+echo "[OK] Squashfs rootfs created"    
+
+echo "[*] generating rootfs checksum..."
 ROOTFS_HASH_FILE="$WORKDIR/rootfs.sha256"
 sha256sum "$SQUASHFS" | awk '{print $1}' > "$ROOTFS_HASH_FILE"
+echo "[OK] rootfs checksum generated"
 
 
 # ----------------------------------------------------------
 # CHOOSE KERNEL
 # ----------------------------------------------------------
-echo "[OK] Searching kernel..."
-
+echo "[*] Searching kernel..."
 KLIST=$(ls /boot/vmlinuz-* 2>/dev/null | grep "$KBASE" | sort || true)
 
 if [ -z "$KLIST" ]; then
@@ -120,6 +120,7 @@ echo "[OK] Kernel version: $FULLVER"
 # ----------------------------------------------------------
 # INITRAMFS BUILD
 # ----------------------------------------------------------
+echo "[*] Building initramfs..."
 INITRAMFS="$WORKDIR/initramfs"
 mkdir -p "$INITRAMFS"
 
@@ -135,6 +136,7 @@ mkdir -p \
   "$INITRAMFS/mnt/iso" \
   "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
+  "$INITRAMFS/mnt/ro_root" \
   "$INITRAMFS/lib/modules/$FULLVER"
 
 install -m 0755 "$SCRIPT_DIR/initramfs/busybox" "$INITRAMFS/bin/busybox"
@@ -202,7 +204,6 @@ kernel/drivers/hid
 kernel/drivers/input
 "
 
-
 for d in $REQ_DIRS; do
     if [ -d "$MODDIR/$d" ]; then
         mkdir -p "$DEST/$d"
@@ -234,7 +235,7 @@ for m in $NEEDED_MODULES; do
     fi
 done
 
-echo "[OK] decompressing kernel modules"
+echo "[*] decompressing kernel modules (initramfs)"
 find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null
 
 # Metadatos de módulos
@@ -247,12 +248,15 @@ depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
 install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
 
-echo "[OK] Packing initramfs..."
+echo "[*] Packing initramfs..."
 ( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG" 2>/dev/null
+echo "[OK] initramfs ready..."
+
 
 # ----------------------------------------------------------
 # GRUB CONFIG
 # ----------------------------------------------------------
+echo "[*] Generating GRUB config..."
 cp /usr/share/grub/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
     || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2"
 
@@ -288,21 +292,23 @@ menuentry "${ISO_NAME} ${VERSION} live (DEBUG)" {
     
 }
 EOF
+echo "[OK] GRUB config ready"
 
 # ----------------------------------------------------------
 # EFI STANDALONE
 # ----------------------------------------------------------
-echo "[OK] building UEFI bootloader"
-
+echo "[*] building UEFI bootloader..."
 grub-mkstandalone \
   -O x86_64-efi \
   -d /usr/lib/grub/x86_64-efi \
   -o "$EFI_DIR/BOOTX64.EFI" \
   "boot/grub/grub.cfg=$GRUB_DIR/grub.cfg"
 
+echo "[OK] UEFI bootloader ready"
 # ----------------------------------------------------------
 # BIOS ENTRY
 # ----------------------------------------------------------
+echo "[*] Building BIOS bootloader..."
 mkdir -p "$GRUB_DIR/i386-pc"
 
 cp -r /usr/lib/grub/i386-pc/* "$GRUB_DIR/i386-pc/" 2>/dev/null
@@ -319,10 +325,11 @@ cat \
   "$GRUB_DIR/i386-pc/core.img" \
     > "$GRUB_DIR/i386-pc/eltorito.img"
 
+echo "[OK] BIOS bootloader ready"
 # ----------------------------------------------------------
 # FINAL ISO BUILD
 # ----------------------------------------------------------
-echo "[OK] Building final ISO..."
+echo "[*] Building final ISO..."
 
 xorriso -as mkisofs \
   -iso-level 3 \

@@ -48,7 +48,7 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 # ----------------------------------------------------------
 clear
 echo "================================================================"
-echo "===== Neonatox Live Boot - v0.3 Carlos Sanchez - 2007-2026 ====="
+echo "===== Neonatox Live Boot - v0.4 Carlos Sanchez - 2007-2026 ====="
 echo "================================================================"
 
 echo "[OK] Creating squashfs rootfs"
@@ -76,6 +76,11 @@ EXCLUDES="
 mksquashfs / "$SQUASHFS" \
     -e $(echo $EXCLUDES) \
     -comp xz -noappend
+    
+echo "[OK] generating rootfs checksum"
+ROOTFS_HASH_FILE="$WORKDIR/rootfs.sha256"
+sha256sum "$SQUASHFS" | awk '{print $1}' > "$ROOTFS_HASH_FILE"
+
 
 # ----------------------------------------------------------
 # CHOOSE KERNEL
@@ -128,6 +133,7 @@ mkdir -p \
   "$INITRAMFS/run" \
   "$INITRAMFS/tmp" \
   "$INITRAMFS/mnt/iso" \
+  "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
   "$INITRAMFS/lib/modules/$FULLVER"
 
@@ -135,14 +141,37 @@ install -m 0755 "$SCRIPT_DIR/initramfs/busybox" "$INITRAMFS/bin/busybox"
 
 (
   cd "$INITRAMFS/bin"
-  ./busybox --list | while read app; do
+  ./busybox --list | grep -v "init" | grep -v "poweroff" | grep -v "reboot" | while read app; do
     [ "$app" = "busybox" ] && continue
     ln -sf busybox "$app"
   done
-  rm -rf init
+  
 )
-
 ln -sf ../bin/busybox "$INITRAMFS/sbin/switch_root"
+
+# Reboot via kernel (emergency shell)
+cat > "$INITRAMFS/sbin/reboot" << "EOF"
+#!/bin/sh
+
+echo "Restarting..."
+sleep 1
+echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
+sync
+echo b > /proc/sysrq-trigger
+EOF
+
+# Power off via kernel (emergency shell)
+cat > "$INITRAMFS/sbin/poweroff" << "EOF"
+#!/bin/sh
+
+echo "Shutting down..."
+sleep 1
+echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
+sync
+echo o > /proc/sysrq-trigger
+EOF
+
+chmod 0755 $INITRAMFS/sbin/{reboot,poweroff}
 
 # Nodos de dispositivo mínimos
 mknod -m 600 "$INITRAMFS/dev/console" c 5 1
@@ -216,6 +245,7 @@ cp "$MODDIR/modules.builtin" "$DEST/" 2>/dev/null || true
 depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null
 
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
+install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
 
 echo "[OK] Packing initramfs..."
 ( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG" 2>/dev/null

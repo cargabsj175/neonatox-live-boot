@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ventoy Support - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Ventoy Support Design</h1>
+
+<p>
+This document explains how Neonatox Live Boot achieves full compatibility with
+Ventoy <strong>without modifying, patching, or depending on Ventoy internals</strong>.
+The solution is implemented entirely inside the custom <code>initramfs</code>
+and <code>build.sh</code>.
+</p>
+
+<h2>Why Ventoy Is Special</h2>
+
+<p>
+Ventoy does not boot a Linux ISO in the traditional way.
+Instead of extracting files, Ventoy:
+</p>
+
+<ul>
+  <li>Boots the kernel and initramfs from the ISO</li>
+  <li>Leaves the ISO file intact on a data partition</li>
+  <li>Injects helper directories such as <code>/ventoy</code> or <code>/vtoy</code></li>
+</ul>
+
+<p>
+Because of this, assumptions commonly made by live systems often fail:
+</p>
+
+<ul>
+  <li>The boot filesystem is not necessarily ISO9660</li>
+  <li>The root filesystem is not mounted automatically</li>
+  <li>The correct ISO cannot be reliably identified by name or label</li>
+</ul>
+
+<h2>Design Goals</h2>
+
+<p>
+The Ventoy support in Neonatox Live Boot was designed with the following goals:
+</p>
+
+<ul>
+  <li>No Ventoy patches or hooks</li>
+  <li>No reliance on ISO filenames</li>
+  <li>No reliance on filesystem labels</li>
+  <li>Works with multiple ISOs on the same USB</li>
+  <li>Safe and deterministic ISO selection</li>
+</ul>
+
+<h2>Filesystem Support</h2>
+
+<p>
+Ventoy USB partitions commonly use filesystems such as:
+</p>
+
+<ul>
+  <li>FAT / VFAT</li>
+  <li>exFAT</li>
+  <li>NTFS</li>
+</ul>
+
+<p>
+To ensure access to Ventoy partitions, the initramfs explicitly loads:
+</p>
+
+<pre>
+iso9660
+vfat
+fat
+exfat
+ntfs3
+</pre>
+
+<p>
+This guarantees that the partition containing ISO files can be mounted
+regardless of the filesystem chosen by the user.
+</p>
+
+<h2>ISO Matching by Cryptographic Hash</h2>
+
+<p>
+The key design decision that makes Ventoy support reliable is
+<strong>cryptographic matching of the root filesystem</strong>.
+</p>
+
+<h3>build.sh Responsibility</h3>
+
+<p>
+During build time, <code>build.sh</code> computes the SHA256 checksum of
+<code>rootfs.squashfs</code> and embeds it into the initramfs as:
+</p>
+
+<pre>
+/rootfs.sha256
+</pre>
+
+<p>
+This permanently binds the initramfs to the exact root filesystem it expects.
+</p>
+
+<h3>init Responsibility</h3>
+
+<p>
+At boot time, the initramfs:
+</p>
+
+<ul>
+  <li>Mounts candidate partitions</li>
+  <li>Scans for ISO files in the root of the filesystem</li>
+  <li>Loop-mounts each ISO</li>
+  <li>Checks for <code>rootfs.squashfs</code> inside the ISO</li>
+  <li>Computes its SHA256 hash</li>
+  <li>Compares it with <code>/rootfs.sha256</code></li>
+</ul>
+
+<p>
+Only when the hashes match is the ISO accepted as the correct boot source.
+</p>
+
+<p>
+This guarantees:
+</p>
+
+<ul>
+  <li>No accidental booting of the wrong ISO</li>
+  <li>Correct behavior even with many ISOs present</li>
+  <li>Independence from naming conventions</li>
+</ul>
+
+<h2>Ventoy Environment Detection</h2>
+
+<p>
+The initramfs detects a Ventoy environment using a minimal and stable condition:
+</p>
+
+<pre>
+/ventoy  or  /vtoy
+</pre>
+
+<p>
+These directories are injected by Ventoy and are present both in normal boot
+and GRUB-based Ventoy boot modes.
+</p>
+
+<p>
+Detection is used only to <strong>enable ISO scanning logic</strong>,
+not to change core boot behavior.
+</p>
+
+<h2>Why ISOs Are Expected in the Partition Root</h2>
+
+<p>
+For simplicity and predictability, Neonatox Live Boot assumes:
+</p>
+
+<ul>
+  <li>ISO files are located in the root of the Ventoy data partition</li>
+  <li>No recursive directory traversal is performed</li>
+</ul>
+
+<p>
+This avoids unnecessary complexity in the initramfs and keeps boot time fast
+and deterministic.
+</p>
+
+<h2>No Special Ventoy Dependencies</h2>
+
+<p>
+Neonatox Live Boot does <strong>not</strong> depend on:
+</p>
+
+<ul>
+  <li>Ventoy plugins</li>
+  <li>Ventoy scripts</li>
+  <li>Ventoy-specific kernel parameters</li>
+</ul>
+
+<p>
+If Ventoy changes its internal implementation, this design is likely to
+continue working as long as:
+</p>
+
+<ul>
+  <li>ISO files remain accessible</li>
+  <li>Loop mounting is supported</li>
+</ul>
+
+<h2>Comparison with Other Live Systems</h2>
+
+<p>
+Many traditional live systems fail under Ventoy because they:
+</p>
+
+<ul>
+  <li>Assume a single ISO per device</li>
+  <li>Rely on filesystem labels</li>
+  <li>Hardcode paths such as <code>/cdrom</code></li>
+</ul>
+
+<p>
+Neonatox Live Boot avoids these assumptions entirely, which is why it works
+reliably where other systems fail.
+</p>
+
+<h2>Summary</h2>
+
+<ul>
+  <li>Ventoy support is fully initramfs-driven</li>
+  <li>No hacks or patches are required</li>
+  <li>Cryptographic verification guarantees correctness</li>
+  <li>The design is simple, explicit, and maintainable</li>
+</ul>
+
+<p>
+This approach preserves the educational philosophy of Neonatox while achieving
+real-world robustness.
+</p>
+
+</body>
+</html>

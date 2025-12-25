@@ -115,14 +115,14 @@ for attempt in 1 2 3; do
         # --------------------------------------------------
         if [ "$VENTOY_MODE" = "1" ]; then
 
-            # ¿Hay ISOs en la raíz de esta partición?
+            # Are there any ISOs in the root of this partition?
             if ls "$ISO_MNT"/*.iso >/dev/null 2>&1; then
                 echo "[INFO] ISO partition detected on $DEV"
         
                 for ISO in "$ISO_MNT"/*.iso; do
                     echo "      testing ISO $(basename "$ISO")"
-        
-                    LOOP="$(losetup -f --show "$ISO" 2>/dev/null)" || continue
+                    # Hack: The busybox losetup applet does not have the --show argument
+                    LOOP="$(losetup -f "$ISO" && losetup -a | grep "$ISO" | sed 's/:.*//')" || continue
         
                     mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
                         losetup -d "$LOOP"
@@ -131,7 +131,8 @@ for attempt in 1 2 3; do
 
                     if [ -f "$ISO_TEST/rootfs.squashfs" ]; then
                         HASH="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
-
+                        
+                        echo "[INFO] rootfs.squashfs found on $(basename "$ISO")" 
                         if [ "$HASH" = "$ROOTFS_HASH" ]; then
                             echo "[OK] matching ISO found via SHA256"
                             FOUND_DEV="ventoy_iso"
@@ -157,8 +158,8 @@ done
 # --------------------------------------------------
 if [ -z "$FOUND_DEV" ]; then
     echo "[ERROR] rootfs.squashfs not found"
-    # echo "Available devices:"
-    # ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true
+    # echo "Available devices:" # Debug purposes
+    # ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true # Debug purposes
     emergency_shell
 fi
 

@@ -25,6 +25,7 @@ Instead of extracting files, Ventoy:
 <ul>
   <li>Boots the kernel and initramfs from the ISO</li>
   <li>Leaves the ISO file intact on a data partition</li>
+  <li>Allows multiple ISO files to coexist on the same USB</li>
   <li>Injects helper directories such as <code>/ventoy</code> or <code>/vtoy</code></li>
 </ul>
 
@@ -39,10 +40,6 @@ Because of this, assumptions commonly made by live systems often fail:
 </ul>
 
 <h2>Design Goals</h2>
-
-<p>
-The Ventoy support in Neonatox Live Boot was designed with the following goals:
-</p>
 
 <ul>
   <li>No Ventoy patches or hooks</li>
@@ -122,16 +119,6 @@ At boot time, the initramfs:
 Only when the hashes match is the ISO accepted as the correct boot source.
 </p>
 
-<p>
-This guarantees:
-</p>
-
-<ul>
-  <li>No accidental booting of the wrong ISO</li>
-  <li>Correct behavior even with many ISOs present</li>
-  <li>Independence from naming conventions</li>
-</ul>
-
 <h2>Ventoy Environment Detection</h2>
 
 <p>
@@ -143,82 +130,101 @@ The initramfs detects a Ventoy environment using a minimal and stable condition:
 </pre>
 
 <p>
-These directories are injected by Ventoy and are present both in normal boot
-and GRUB-based Ventoy boot modes.
+These directories are injected by Ventoy and are present both in legacy and UEFI
+Ventoy boot modes.
+</p>
+
+<h2>Critical Detail: BusyBox losetup Limitation</h2>
+
+<p>
+The final issue preventing Ventoy boot was <strong>not Ventoy itself</strong>,
+but a limitation of the BusyBox implementation used inside the initramfs.
+</p>
+
+<h3>The Problem</h3>
+
+<p>
+Many full Linux systems rely on:
+</p>
+
+<pre>
+losetup --show -f file.iso
+</pre>
+
+<p>
+However, the BusyBox <code>losetup</code> applet does <strong>not</strong>
+support the <code>--show</code> option.
 </p>
 
 <p>
-Detection is used only to <strong>enable ISO scanning logic</strong>,
-not to change core boot behavior.
-</p>
-
-<h2>Why ISOs Are Expected in the Partition Root</h2>
-
-<p>
-For simplicity and predictability, Neonatox Live Boot assumes:
-</p>
-
-<ul>
-  <li>ISO files are located in the root of the Ventoy data partition</li>
-  <li>No recursive directory traversal is performed</li>
-</ul>
-
-<p>
-This avoids unnecessary complexity in the initramfs and keeps boot time fast
-and deterministic.
-</p>
-
-<h2>No Special Ventoy Dependencies</h2>
-
-<p>
-Neonatox Live Boot does <strong>not</strong> depend on:
-</p>
-
-<ul>
-  <li>Ventoy plugins</li>
-  <li>Ventoy scripts</li>
-  <li>Ventoy-specific kernel parameters</li>
-</ul>
-
-<p>
-If Ventoy changes its internal implementation, this design is likely to
-continue working as long as:
+As a result:
 </p>
 
 <ul>
-  <li>ISO files remain accessible</li>
-  <li>Loop mounting is supported</li>
+  <li>The command silently failed</li>
+  <li>The loop device variable remained empty</li>
+  <li>The ISO was never actually mounted</li>
+  <li><code>rootfs.squashfs</code> was never found</li>
 </ul>
 
-<h2>Comparison with Other Live Systems</h2>
+<p>
+This created a false impression that Ventoy was incompatible.
+</p>
+
+<h3>The Solution</h3>
 
 <p>
-Many traditional live systems fail under Ventoy because they:
+The fix was to explicitly query the loop device after attachment:
+</p>
+
+<pre>
+LOOP="$(losetup -f "$ISO" &amp;&amp; losetup -a | grep "$ISO" | sed 's/:.*//')"
+</pre>
+
+<p>
+This approach:
 </p>
 
 <ul>
-  <li>Assume a single ISO per device</li>
-  <li>Rely on filesystem labels</li>
-  <li>Hardcode paths such as <code>/cdrom</code></li>
+  <li>Works with BusyBox</li>
+  <li>Does not require GNU util-linux</li>
+  <li>Correctly retrieves the loop device</li>
+  <li>Restores reliable ISO mounting</li>
 </ul>
 
 <p>
-Neonatox Live Boot avoids these assumptions entirely, which is why it works
-reliably where other systems fail.
+Once this change was applied, Ventoy boot worked correctly and consistently.
+</p>
+
+<h2>Why This Matters</h2>
+
+<p>
+This highlights an important lesson when designing initramfs-based systems:
+</p>
+
+<ul>
+  <li>Tool behavior inside initramfs is not the same as a full system</li>
+  <li>BusyBox applets have reduced feature sets</li>
+  <li>Silent failures can lead to misleading conclusions</li>
+</ul>
+
+<p>
+Ventoy itself was functioning exactly as designed.
 </p>
 
 <h2>Summary</h2>
 
 <ul>
   <li>Ventoy support is fully initramfs-driven</li>
-  <li>No hacks or patches are required</li>
-  <li>Cryptographic verification guarantees correctness</li>
-  <li>The design is simple, explicit, and maintainable</li>
+  <li>No Ventoy patches or plugins are required</li>
+  <li>ISO selection is cryptographically verified</li>
+  <li>The final blocker was a BusyBox limitation, not Ventoy</li>
+  <li>The solution is portable, robust, and maintainable</li>
 </ul>
 
 <p>
-This approach preserves the educational philosophy of Neonatox while achieving
-real-world robustness.
+This design preserves Neonatox’s educational philosophy while achieving
+real-world compatibility with modern multiboot tools.
 </p>
 
 </body>

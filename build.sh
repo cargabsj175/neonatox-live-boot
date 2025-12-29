@@ -32,6 +32,9 @@ SQUASHFS="$ISO_DIR/rootfs.squashfs"
 INITRAMFS_IMG="$BOOT_DIR/initramfs.img"
 BG_IMG="$SCRIPT_DIR/iso/background.png"
 
+CORE_DIRS="bin etc lib lib64 libx32 opt sbin srv usr var"
+CORE_PATHS=""
+
 # ----------------------------------------------------------
 # CLEANUP + CREATE DIRS
 # ----------------------------------------------------------
@@ -58,7 +61,7 @@ EXCLUDES="
 /dev
 /run
 /tmp
-/media/*
+/media/*/*
 /mnt/*
 /lost+found
 /swapfile
@@ -72,9 +75,16 @@ EXCLUDES="
 "
 
 echo "[*] Creating squashfs rootfs..." 
-mksquashfs / "$SQUASHFS" \
-    -e $(echo $EXCLUDES) \
-    -comp xz -noappend
+
+for d in $CORE_DIRS; do
+[ -e "/$d" ] && CORE_PATHS="$CORE_PATHS /$d"
+done
+
+mksquashfs $CORE_PATHS "$SQUASHFS" \
+-e $(echo $EXCLUDES) \
+-comp zstd -Xcompression-level 15 \
+-b 256K -noappend -no-duplicates
+    
 echo "[OK] Squashfs rootfs created"    
 
 echo "[*] generating rootfs checksum..."
@@ -227,6 +237,11 @@ kernel/drivers/hid/usbhid/usbhid.ko*
 kernel/drivers/input/serio/i8042.ko*
 kernel/drivers/input/keyboard/atkbd.ko*
 kernel/drivers/input/serio/libps2.ko*
+kernel/lib/lz4/lz4_compress.ko.zst 
+kernel/lib/lz4/lz4hc_compress.ko.zst 
+kernel/lib/842/842_compress.ko.zst 
+kernel/lib/842/842_decompress.ko.zst 
+kernel/drivers/block/zram/zram.ko*
 "
 
 for m in $NEEDED_MODULES; do
@@ -249,7 +264,7 @@ install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
 install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
 
 echo "[*] Packing initramfs..."
-( cd "$INITRAMFS" && find . -print0 | cpio --null -o -H newc | gzip -9 ) > "$INITRAMFS_IMG" 2>/dev/null
+( cd "$INITRAMFS" && find . -print | cpio -o -H newc 2>/dev/null | xz -T0 -f --extreme --check=crc32 ) > "$INITRAMFS_IMG" 2>/dev/null
 echo "[OK] initramfs ready..."
 
 
@@ -290,7 +305,11 @@ menuentry "${ISO_NAME} ${VERSION} live (DEBUG)" {
     initrd /boot/initramfs.img
 }
     
+menuentry "${ISO_NAME} ${VERSION} live (INITRAMFS DEBUG)" {
+    linux /boot/vmlinuz emergency=1
+    initrd /boot/initramfs.img
 }
+
 EOF
 echo "[OK] GRUB config ready"
 

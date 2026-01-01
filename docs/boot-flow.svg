@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   width="602"
-   height="927.25977"
-   viewBox="0 0 602 927.25977"
-   font-family="monospace"
+   width="1100"
+   height="900"
+   viewBox="0 0 1100 900"
    version="1.1"
-   id="svg22"
+   id="svg34"
    sodipodi:docname="boot-flow.svg"
    inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -13,7 +12,7 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
   <sodipodi:namedview
-     id="namedview22"
+     id="namedview34"
      pagecolor="#ffffff"
      bordercolor="#000000"
      borderopacity="0.25"
@@ -22,259 +21,453 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="0.90222222"
-     inkscape:cx="300.92365"
-     inkscape:cy="515.39409"
+     inkscape:cx="576.35468"
+     inkscape:cy="408.99015"
      inkscape:window-width="1920"
      inkscape:window-height="1029"
      inkscape:window-x="0"
      inkscape:window-y="27"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg22" />
+     inkscape:current-layer="svg34" />
+  <style
+     id="style1">
+    .box { fill:#0b1e2d; stroke:#00c2ff; stroke-width:2; rx:10; ry:10; }
+    .decision { fill:#102c3a; stroke:#00ffa6; stroke-width:2; rx:14; ry:14; }
+    .title { fill:#00c2ff; font-size:20px; font-weight:bold; }
+    .text { fill:#e6f6ff; font-size:14px; }
+    .arrow { stroke:#00c2ff; stroke-width:2; marker-end:url(#arrow); }
+    .arrow-alt { stroke:#00ffa6; stroke-width:2; marker-end:url(#arrow-alt); }
+  </style>
   <defs
-     id="defs1">
-    <style
-       id="style1">
-      .box {
-        fill: #f9f9f9;
-        stroke: #333;
-        stroke-width: 2;
-        rx: 10;
-        ry: 10;
-      }
-      .title {
-        font-size: 20px;
-        font-weight: bold;
-      }
-      .text {
-        font-size: 14px;
-      }
-      .arrow {
-        stroke: #333;
-        stroke-width: 2;
-        marker-end: url(#arrowhead);
-      }
-    </style>
+     id="defs2">
     <marker
-       id="arrowhead"
+       id="arrow"
        markerWidth="10"
-       markerHeight="7"
-       refX="10"
-       refY="3.5"
-       orient="auto">
-      <polygon
-         points="10,3.5 0,7 0,0 "
-         fill="#333333"
-         id="polygon1" />
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M0,0 L6,3 L0,6 Z"
+         fill="#00c2ff"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrow-alt"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M0,0 L6,3 L0,6 Z"
+         fill="#00ffa6"
+         id="path2" />
+    </marker>
+    <marker
+       id="arrow-3"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-6" />
+    </marker>
+    <marker
+       id="arrow-6"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-2" />
+    </marker>
+    <marker
+       id="arrow-6-2"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-2-7" />
+    </marker>
+    <marker
+       id="arrow-36"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-0" />
+    </marker>
+    <marker
+       id="arrow-1"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-8" />
+    </marker>
+    <marker
+       id="arrow-6-20"
+       markerWidth="10"
+       markerHeight="10"
+       refX="6"
+       refY="3"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 6,3 0,6 Z"
+         fill="#00c2ff"
+         id="path1-2-2" />
     </marker>
   </defs>
   <!-- Title -->
   <text
-     x="301"
-     y="16.259766"
+     x="550"
+     y="32"
      text-anchor="middle"
      class="title"
-     id="text1">Neonatox Live Boot – Complete Boot Flow</text>
+     id="text2">
+    Neonatox Live Boot Flow (CD / USB / Ventoy)
+  </text>
   <!-- Firmware -->
   <rect
-     x="151"
-     y="56.259766"
-     width="300"
+     x="390"
+     y="60"
+     width="320"
      height="60"
      class="box"
-     id="rect1" />
+     id="rect2"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="91.259766"
+     x="550"
+     y="95"
      text-anchor="middle"
      class="text"
-     id="text2">Firmware (BIOS / UEFI)</text>
-  <!-- GRUB -->
+     id="text3">
+    Firmware (BIOS / UEFI)
+  </text>
+  <!-- Boot sources -->
   <rect
-     x="151"
-     y="146.25977"
-     width="300"
-     height="60"
+     x="80"
+     y="160"
+     width="280"
+     height="70"
      class="box"
-     id="rect2" />
+     id="rect3"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="181.25977"
+     x="220"
+     y="190"
      text-anchor="middle"
      class="text"
-     id="text3">GRUB Bootloader</text>
+     id="text4">
+    CD / DVD
+  </text>
+  <text
+     x="220"
+     y="210"
+     text-anchor="middle"
+     class="text"
+     id="text5">
+    GRUB (Neonatox)
+  </text>
+  <rect
+     x="410"
+     y="160"
+     width="280"
+     height="70"
+     class="box"
+     id="rect5"
+     style="fill:#225500" />
+  <text
+     x="550"
+     y="190"
+     text-anchor="middle"
+     class="text"
+     id="text6">
+    USB (dd)
+  </text>
+  <text
+     x="550"
+     y="210"
+     text-anchor="middle"
+     class="text"
+     id="text7">
+    GRUB (Neonatox)
+  </text>
+  <rect
+     x="740"
+     y="160"
+     width="280"
+     height="70"
+     class="box"
+     id="rect7"
+     style="fill:#225500" />
+  <text
+     x="880"
+     y="190"
+     text-anchor="middle"
+     class="text"
+     id="text8">
+    Ventoy
+  </text>
+  <text
+     x="880"
+     y="210"
+     text-anchor="middle"
+     class="text"
+     id="text9">
+    GRUB (Ventoy)
+  </text>
   <!-- Kernel -->
   <rect
-     x="151"
-     y="236.25977"
-     width="300"
+     x="390"
+     y="270"
+     width="320"
      height="70"
      class="box"
-     id="rect3" />
+     id="rect9"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="271.25977"
+     x="550"
+     y="300"
      text-anchor="middle"
      class="text"
-     id="text4">Linux Kernel</text>
+     id="text10">
+    Linux Kernel
+  </text>
   <text
-     x="301"
-     y="291.25977"
+     x="550"
+     y="320"
      text-anchor="middle"
      class="text"
-     id="text5">vmlinuz + initramfs.img</text>
-  <!-- Initramfs -->
+     id="text11">
+    vmlinuz + initramfs
+  </text>
+  <!-- initramfs -->
   <rect
-     x="101"
-     y="346.25977"
-     width="400"
-     height="110"
+     x="260"
+     y="380"
+     width="580"
+     height="200"
      class="box"
-     id="rect5" />
+     id="rect11"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="376.25977"
+     x="550"
+     y="405"
+     text-anchor="middle"
+     class="title"
+     id="text12">
+    initramfs
+  </text>
+  <text
+     x="280"
+     y="435"
+     class="text"
+     id="text13">• mount /proc /sys /run</text>
+  <text
+     x="280"
+     y="455"
+     class="text"
+     id="text14">• mdev + nodos de dispositivo</text>
+  <text
+     x="280"
+     y="475"
+     class="text"
+     id="text15">• carga de módulos (storage, fs, input)</text>
+  <text
+     x="280"
+     y="495"
+     class="text"
+     id="text16"><tspan
+       sodipodi:role="line"
+       id="tspan35"
+       x="280"
+       y="495">• scan CD / USB / NVMe / HDD/ VENTOY</tspan></text>
+  <text
+     x="280"
+     y="515"
+     class="text"
+     id="text17">• mount ISO → rootfs.squashfs</text>
+  <text
+     x="280"
+     y="535"
+     class="text"
+     id="text18">• overlayfs (tmpfs en RAM)</text>
+  <!-- neoconfig decision -->
+  <text
+     x="550"
+     y="640"
      text-anchor="middle"
      class="text"
-     id="text6">Initramfs (/init)</text>
-  <text
-     x="301"
-     y="401.25977"
-     text-anchor="middle"
-     class="text"
-     id="text7">• Mount /proc /sys /run</text>
-  <text
-     x="301"
-     y="421.25977"
-     text-anchor="middle"
-     class="text"
-     id="text8">• Load modules (SATA / USB / NVMe / input)</text>
-  <text
-     x="301"
-     y="441.25977"
-     text-anchor="middle"
-     class="text"
-     id="text9">• Scan devices + mdev</text>
-  <!-- rootfs detection -->
+     id="text19" />
+  <!-- live-config -->
   <rect
-     x="51"
-     y="496.25977"
-     width="500"
-     height="90"
-     class="box"
-     id="rect9" />
-  <text
-     x="301"
-     y="526.25977"
-     text-anchor="middle"
-     class="text"
-     id="text10">Locate rootfs.squashfs</text>
-  <text
-     x="301"
-     y="551.25977"
-     text-anchor="middle"
-     class="text"
-     id="text11">Probe CD / NVMe / SATA / USB / IDE</text>
-  <!-- squashfs -->
-  <rect
-     x="51"
-     y="626.25977"
-     width="500"
+     x="120"
+     y="626"
+     width="320"
      height="80"
      class="box"
-     id="rect11" />
+     id="rect19"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="656.25977"
+     x="280"
+     y="656"
      text-anchor="middle"
      class="text"
-     id="text12">Mount squashfs (read-only)</text>
+     id="text20"><tspan
+       sodipodi:role="line"
+       id="tspan37"
+       x="280"
+       y="656">¿kernel param neoconfig=1?</tspan></text>
   <text
-     x="301"
-     y="681.25977"
+     x="280"
+     y="676"
      text-anchor="middle"
      class="text"
-     id="text13">/mnt/ro_root</text>
-  <!-- overlay -->
+     id="text21">language / keyboard/ live user</text>
+  <!-- switch_root -->
   <rect
-     x="1"
-     y="736.25977"
-     width="600"
-     height="100"
+     x="660"
+     y="626"
+     width="320"
+     height="80"
      class="box"
-     id="rect13" />
+     id="rect21"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="771.25977"
+     x="820"
+     y="656"
      text-anchor="middle"
      class="text"
-     id="text14">OverlayFS (Live Root)</text>
+     id="text22">switch_root</text>
   <text
-     x="301"
-     y="796.25977"
+     x="820"
+     y="676"
      text-anchor="middle"
      class="text"
-     id="text15">lower = squashfs | upper + work = tmpfs</text>
-  <text
-     x="301"
-     y="821.25977"
-     text-anchor="middle"
-     class="text"
-     id="text16">Result: /mnt/newroot (writable)</text>
+     id="text23">/mnt/newroot</text>
   <!-- systemd -->
   <rect
-     x="151"
-     y="856.25977"
-     width="300"
-     height="70"
+     x="390"
+     y="756"
+     width="320"
+     height="60"
      class="box"
-     id="rect16" />
+     id="rect23"
+     style="fill:#225500" />
   <text
-     x="301"
-     y="891.25977"
+     x="550"
+     y="791"
      text-anchor="middle"
      class="text"
-     id="text17">switch_root → systemd (PID 1)</text>
+     id="text24">systemd (rootfs real, clean)</text>
   <!-- Arrows -->
   <line
-     x1="301"
-     y1="116.25977"
-     x2="301"
-     y2="146.25977"
+     x1="550"
+     y1="120"
+     x2="220"
+     y2="160"
      class="arrow"
-     id="line17" />
+     id="line24" />
   <line
-     x1="301"
-     y1="206.25977"
-     x2="301"
-     y2="236.25977"
+     x1="550"
+     y1="120"
+     x2="550"
+     y2="160"
      class="arrow"
-     id="line18" />
+     id="line25" />
   <line
-     x1="301"
-     y1="306.25977"
-     x2="301"
-     y2="346.25977"
+     x1="550"
+     y1="120"
+     x2="880"
+     y2="160"
      class="arrow"
-     id="line19" />
+     id="line26" />
   <line
-     x1="301"
-     y1="456.25977"
-     x2="301"
-     y2="496.25977"
+     x1="220"
+     y1="230"
+     x2="550"
+     y2="270"
      class="arrow"
-     id="line20" />
+     id="line27" />
   <line
-     x1="301"
-     y1="586.25977"
-     x2="301"
-     y2="626.25977"
+     x1="553.41541"
+     y1="579.84644"
+     x2="783.57397"
+     y2="620.01575"
      class="arrow"
-     id="line21" />
+     id="line27-1"
+     style="stroke:#00c2ff;stroke-width:1.6738;marker-end:url(#arrow-6)" />
   <line
-     x1="301"
-     y1="706.25977"
-     x2="301"
-     y2="736.25977"
+     x1="439.1665"
+     y1="669.78815"
+     x2="635.82965"
+     y2="670.547"
      class="arrow"
-     id="line22" />
+     id="line27-1-7"
+     style="stroke:#00c2ff;stroke-width:1.53237;marker-end:url(#arrow-6-20)" />
+  <line
+     x1="527.65942"
+     y1="579.3114"
+     x2="315.06271"
+     y2="619.51935"
+     class="arrow"
+     id="line27-1-9"
+     style="stroke:#00c2ff;stroke-width:1.60945;marker-end:url(#arrow-6-2)" />
+  <line
+     x1="550"
+     y1="230"
+     x2="550"
+     y2="270"
+     class="arrow"
+     id="line28" />
+  <line
+     x1="880"
+     y1="230"
+     x2="550"
+     y2="270"
+     class="arrow"
+     id="line29" />
+  <line
+     x1="550"
+     y1="340"
+     x2="550"
+     y2="380"
+     class="arrow"
+     id="line30" />
+  <line
+     x1="832.59637"
+     y1="705.73724"
+     x2="570.65356"
+     y2="749.64319"
+     class="arrow"
+     id="line29-9"
+     style="stroke:#00c2ff;stroke-width:1.78487;marker-end:url(#arrow-1)" />
 </svg>

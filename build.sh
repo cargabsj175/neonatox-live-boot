@@ -32,12 +32,74 @@ SQUASHFS="$ISO_DIR/rootfs.squashfs"
 INITRAMFS_IMG="$BOOT_DIR/initramfs.img"
 BG_IMG="$SCRIPT_DIR/iso/background.png"
 
-CORE_DIRS="bin etc lib lib64 libx32 opt sbin srv usr var"
-CORE_PATHS=""
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# ----------------------------------------------------------
+# ERROR HANDLING (section-aware)
+# ----------------------------------------------------------
+CURRENT_SECTION="initialization"
+
+trap 'echo -e "${RED}[FATAL]${NC} error in section: $CURRENT_SECTION (line $LINENO)"; echo "Command: $BASH_COMMAND"; exit 99' ERR
+
+# ----------------------------------------------------------
+# PRE-CHECKS
+# ----------------------------------------------------------
+CURRENT_SECTION="pre-checks"
+
+echo -e "${YELLOW}[CHECK]${NC} validating environment..."
+
+
+REQUIRED_BINS="
+mksquashfs
+xorriso
+grub-mkimage
+grub-mkstandalone
+cpio
+xz
+sha256sum
+depmod
+modprobe
+mknod
+realpath
+"
+
+for bin in $REQUIRED_BINS; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        echo -e "${RED}[ERROR]${NC} missing required binary: $bin"
+        exit 10
+    fi
+done
+
+REQUIRED_DIRS="
+/boot
+/usr/lib/grub
+/lib/modules
+"
+
+for dir in $REQUIRED_DIRS; do
+    if [ ! -d "$dir" ]; then
+        echo -e "${RED}[ERROR]${NC} missing required directory: $dir"
+        exit 11
+    fi
+done
+
+[ -f "$BG_IMG" ] || {
+    echo -e "${RED}[ERROR]${NC} background image not found: $BG_IMG"
+    exit 12
+}
+
+echo -e "${GREEN}[OK]${NC} environment valid"
 
 # ----------------------------------------------------------
 # CLEANUP + CREATE DIRS
 # ----------------------------------------------------------
+CURRENT_SECTION="cleanup and directory setup"
+
 rm -rf "$WORKDIR"
 mkdir -p "$ISO_DIR" "$OUTDIR" "$BOOT_DIR" "$GRUB_DIR" "$EFI_DIR"
 
@@ -49,12 +111,16 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 # ----------------------------------------------------------
 # MAKE ROOTFS SQUASHFS
 # ----------------------------------------------------------
+CURRENT_SECTION="rootfs squashfs"
+
 clear
-echo "================================================================"
-echo "===== Neonatox Live Boot - v0.4 Carlos Sanchez - 2007-2026 ====="
-echo "================================================================"
+echo -e "${YELLOW}================================================================${NC}"
+echo -e "${YELLOW}=====${NC} ${GREEN}Neonatox Live Boot - v0.5 Carlos Sanchez - 2007-2026 ${YELLOW}=====${NC}"
+echo -e "${YELLOW}================================================================${NC}"
+
 
 EXCLUDES="
+/boot/*
 /opt/*
 /proc
 /sys
@@ -68,35 +134,29 @@ EXCLUDES="
 /var/log/*
 /var/cache/*
 /var/tmp/*
-/home/*/.cache/*
-/home/*/.local/share/Trash/*
-/home/*/.mozilla/*/cache2/*
+/home/*
 /usr/src/*
+/usr/lib/firmware/*
 "
 
-echo "[*] Creating squashfs rootfs..." 
+echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
+mksquashfs / "$SQUASHFS"  -e $(echo $EXCLUDES) -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
+echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
-for d in $CORE_DIRS; do
-[ -e "/$d" ] && CORE_PATHS="$CORE_PATHS /$d"
-done
-
-mksquashfs $CORE_PATHS "$SQUASHFS" \
--e $(echo $EXCLUDES) \
--comp zstd -Xcompression-level 15 \
--b 256K -noappend -no-duplicates
-    
-echo "[OK] Squashfs rootfs created"    
-
-echo "[*] generating rootfs checksum..."
+echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."
 ROOTFS_HASH_FILE="$WORKDIR/rootfs.sha256"
+
+CURRENT_SECTION="rootfs checksum"
 sha256sum "$SQUASHFS" | awk '{print $1}' > "$ROOTFS_HASH_FILE"
-echo "[OK] rootfs checksum generated"
+echo -e "${GREEN}[OK]${NC} rootfs checksum generated"
 
 
 # ----------------------------------------------------------
 # CHOOSE KERNEL
 # ----------------------------------------------------------
-echo "[*] Searching kernel..."
+CURRENT_SECTION="kernel selection"
+
+echo -e "${YELLOW}[INFO]${NC} Searching kernel..."
 KLIST=$(ls /boot/vmlinuz-* 2>/dev/null | grep "$KBASE" | sort || true)
 
 if [ -z "$KLIST" ]; then
@@ -122,15 +182,25 @@ else
     VMLINUX="$SELECTED"
 fi
 
+CURRENT_SECTION="kernel copy"
+
+[ -f "$VMLINUX" ] || {
+    echo -e "${RED}[ERROR]${NC} kernel image not found: $VMLINUX"
+    exit 20
+}
+
 cp "$VMLINUX" "$BOOT_DIR/vmlinuz"
 
+
 FULLVER=$(uname -r)
-echo "[OK] Kernel version: $FULLVER"
+echo -e "${GREEN}[OK]${NC} Kernel version: $FULLVER"
 
 # ----------------------------------------------------------
 # INITRAMFS BUILD
 # ----------------------------------------------------------
-echo "[*] Building initramfs..."
+CURRENT_SECTION="initramfs build"
+
+echo -e "${YELLOW}[INFO]${NC} Building initramfs..."
 INITRAMFS="$WORKDIR/initramfs"
 mkdir -p "$INITRAMFS"
 
@@ -148,6 +218,9 @@ mkdir -p \
   "$INITRAMFS/mnt/newroot" \
   "$INITRAMFS/mnt/ro_root" \
   "$INITRAMFS/lib/modules/$FULLVER"
+  
+
+CURRENT_SECTION="initramfs busybox setup"
 
 install -m 0755 "$SCRIPT_DIR/initramfs/busybox" "$INITRAMFS/bin/busybox"
 
@@ -212,7 +285,11 @@ kernel/drivers/cdrom/
 kernel/fs
 kernel/drivers/hid
 kernel/drivers/input
+kernel/lib/lz4
+kernel/lib/842
 "
+
+CURRENT_SECTION="initramfs kernel modules copy"
 
 for d in $REQ_DIRS; do
     if [ -d "$MODDIR/$d" ]; then
@@ -221,57 +298,38 @@ for d in $REQ_DIRS; do
     fi
 done
 
-# Módulos individuales críticos (asegurar inclusión explícita)
-NEEDED_MODULES="
-kernel/drivers/block/loop.ko*
-kernel/drivers/scsi/sd_mod.ko*
-kernel/drivers/scsi/sr_mod.ko*
-kernel/drivers/cdrom/cdrom.ko*
-kernel/drivers/usb/storage/usb-storage.ko*
-kernel/drivers/ata/ahci.ko*
-kernel/fs/squashfs/squashfs.ko*
-kernel/fs/overlayfs/overlay.ko*
-kernel/drivers/hid/hid.ko*
-kernel/drivers/hid/hid-generic.ko*
-kernel/drivers/hid/usbhid/usbhid.ko*
-kernel/drivers/input/serio/i8042.ko*
-kernel/drivers/input/keyboard/atkbd.ko*
-kernel/drivers/input/serio/libps2.ko*
-kernel/lib/lz4/lz4_compress.ko.zst 
-kernel/lib/lz4/lz4hc_compress.ko.zst 
-kernel/lib/842/842_compress.ko.zst 
-kernel/lib/842/842_decompress.ko.zst 
-kernel/drivers/block/zram/zram.ko*
-"
-
-for m in $NEEDED_MODULES; do
-    if [ -f "$MODDIR/$m" ]; then
-        install -D "$MODDIR/$m" "$DEST/$m"
-    fi
-done
-
-echo "[*] decompressing kernel modules (initramfs)"
-find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null
+echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (initramfs)"
+find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
+find "$INITRAMFS/lib/modules" -name "*.ko.gz" -exec unzstd -f --rm {} \; 2>/dev/null || true
+find "$INITRAMFS/lib/modules" -name "*.ko.xz" -exec unzstd -f --rm {} \; 2>/dev/null || true
 
 # Metadatos de módulos
 cp "$MODDIR/modules.order"   "$DEST/" 2>/dev/null || true
 cp "$MODDIR/modules.builtin" "$DEST/" 2>/dev/null || true
 
 # Generar dependencias
-depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null
+CURRENT_SECTION="initramfs depmod"
+
+depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null || true
 
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
+install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"
 install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
 
-echo "[*] Packing initramfs..."
+
+CURRENT_SECTION="initramfs packing"
+
+echo -e "${YELLOW}[INFO]${NC} Packing initramfs..."
 ( cd "$INITRAMFS" && find . -print | cpio -o -H newc 2>/dev/null | xz -T0 -f --extreme --check=crc32 ) > "$INITRAMFS_IMG" 2>/dev/null
-echo "[OK] initramfs ready..."
+echo -e "${GREEN}[OK]${NC} initramfs ready..."
 
 
 # ----------------------------------------------------------
 # GRUB CONFIG
 # ----------------------------------------------------------
-echo "[*] Generating GRUB config..."
+CURRENT_SECTION="grub configuration"
+
+echo -e "${YELLOW}[INFO]${NC} Generating GRUB config..."
 cp /usr/share/grub/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
     || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2"
 
@@ -296,7 +354,17 @@ terminal_output gfxterm
 background_image /boot/grub/theme/background.png
 
 menuentry "${ISO_NAME} ${VERSION} live" {
-    linux /boot/vmlinuz quiet
+    linux /boot/vmlinuz quiet loglevel=3
+    initrd /boot/initramfs.img
+}
+
+menuentry "${ISO_NAME} ${VERSION} live (Language & Live User Config)" {
+    linux /boot/vmlinuz quiet neoconfig=1
+    initrd /boot/initramfs.img
+}
+
+menuentry "${ISO_NAME} ${VERSION} live (Failsafe graphics)" {
+    linux /boot/vmlinuz quiet nomodeset vga=normal
     initrd /boot/initramfs.img
 }
 
@@ -304,30 +372,34 @@ menuentry "${ISO_NAME} ${VERSION} live (DEBUG)" {
     linux /boot/vmlinuz debug=1 loglevel=7
     initrd /boot/initramfs.img
 }
-    
-menuentry "${ISO_NAME} ${VERSION} live (INITRAMFS DEBUG)" {
-    linux /boot/vmlinuz emergency=1
+
+menuentry "${ISO_NAME} ${VERSION} live (Initramfs debug)" {
+    linux /boot/vmlinuz initrd_debug=1
     initrd /boot/initramfs.img
 }
 
 EOF
-echo "[OK] GRUB config ready"
+echo -e "${GREEN}[OK]${NC} GRUB config ready"
 
 # ----------------------------------------------------------
 # EFI STANDALONE
 # ----------------------------------------------------------
-echo "[*] building UEFI bootloader..."
+CURRENT_SECTION="grub efi build"
+
+echo -e "${YELLOW}[INFO]${NC} building UEFI bootloader..."
 grub-mkstandalone \
   -O x86_64-efi \
   -d /usr/lib/grub/x86_64-efi \
   -o "$EFI_DIR/BOOTX64.EFI" \
   "boot/grub/grub.cfg=$GRUB_DIR/grub.cfg"
 
-echo "[OK] UEFI bootloader ready"
+echo -e "${GREEN}[OK]${NC} UEFI bootloader ready"
 # ----------------------------------------------------------
 # BIOS ENTRY
 # ----------------------------------------------------------
-echo "[*] Building BIOS bootloader..."
+CURRENT_SECTION="grub bios build"
+
+echo -e "${YELLOW}[INFO]${NC} Building BIOS bootloader..."
 mkdir -p "$GRUB_DIR/i386-pc"
 
 cp -r /usr/lib/grub/i386-pc/* "$GRUB_DIR/i386-pc/" 2>/dev/null
@@ -344,11 +416,13 @@ cat \
   "$GRUB_DIR/i386-pc/core.img" \
     > "$GRUB_DIR/i386-pc/eltorito.img"
 
-echo "[OK] BIOS bootloader ready"
+echo -e "${GREEN}[OK]${NC} BIOS bootloader ready"
 # ----------------------------------------------------------
 # FINAL ISO BUILD
 # ----------------------------------------------------------
-echo "[*] Building final ISO..."
+CURRENT_SECTION="final iso build"
+
+echo -e "${YELLOW}[INFO]${NC} Building final ISO..."
 
 xorriso -as mkisofs \
   -iso-level 3 \
@@ -363,6 +437,6 @@ xorriso -as mkisofs \
   "$ISO_DIR"
 
 echo "============================================"
-echo "ISO READY:"
-echo "$OUTDIR/${ISO_NAME}-${VERSION}-${ARCH}.iso"
+echo -e "${YELLOW}ISO READY${NC}:"
+echo -e "${GREEN}$OUTDIR/${ISO_NAME}-${VERSION}-${ARCH}.iso${NC}"
 echo "============================================"

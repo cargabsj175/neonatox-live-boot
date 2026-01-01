@@ -53,6 +53,7 @@ Repository Structure
 ├── initramfs
 │   ├── busybox
 │   └── init
+│   └── live-config.sh
 ├── iso
 │   └── background.png
 ├── output

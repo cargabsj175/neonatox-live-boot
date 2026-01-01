@@ -48,6 +48,7 @@ Repository Structure
 │   ├── 08-ventoy-support.html
 │   ├── 09-live-config.html
 │   ├── 10-boot-modes.html
+│   ├── boot-flow.svg
 │   └── README.html
 ├── initramfs
 │   ├── busybox

@@ -66,6 +66,9 @@ depmod
 modprobe
 mknod
 realpath
+unxz
+gunzip
+unzstd
 "
 
 for bin in $REQUIRED_BINS; do
@@ -298,10 +301,13 @@ for d in $REQ_DIRS; do
     fi
 done
 
-echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (initramfs)"
+echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (on initramfs)"
+# Unzip .ko.zst files if they exist
 find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
-find "$INITRAMFS/lib/modules" -name "*.ko.gz" -exec unzstd -f --rm {} \; 2>/dev/null || true
-find "$INITRAMFS/lib/modules" -name "*.ko.xz" -exec unzstd -f --rm {} \; 2>/dev/null || true
+# Unzip .ko.gz files with gunzip if they exist
+find "$INITRAMFS/lib/modules" -name "*.ko.gz" -exec gunzip -f {} \; 2>/dev/null || true
+# Unzip .ko.xz files with unxz if they exist
+find "$INITRAMFS/lib/modules" -name "*.ko.xz" -exec unxz -f {} \; 2>/dev/null || true
 
 # Metadatos de módulos
 cp "$MODDIR/modules.order"   "$DEST/" 2>/dev/null || true

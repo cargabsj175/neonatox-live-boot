@@ -2,32 +2,46 @@
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
 [ "$debug" = "1" ] && set -x
 
-echo "================================================================"
-echo "===== Neonatox Live Boot - v0.4 Carlos Sanchez - 2007-2026 ====="
-echo "================================================================"
-
-# --------------------------------------------------
-# Core functions
-# --------------------------------------------------
-emergency_shell() {
-    echo "[EMERGENCY] Dropping to shell"
-    exec sh
-}
-
 # --------------------------------------------------
 # Config
 # --------------------------------------------------
+# Colors (TTY safe)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Global
 ISO_MNT="/mnt/iso"
 ISO_TEST="/mnt/iso_test"
 FOUND_DEV=""
 VENTOY_MODE=0
 
+
+# --------------------------------------------------
+# Core functions
+# --------------------------------------------------
+emergency_shell() {
+	
+    echo -e "${RED}[EMERGENCY]${NC} Dropping to shell"
+    exec sh
+}
+
+echo -e "${YELLOW}================================================================${NC}"
+echo -e "${YELLOW}=====${NC} ${GREEN}Neonatox Live Boot - v0.5 Carlos Sanchez - 2007-2026 ${YELLOW}=====${NC}"
+echo -e "${YELLOW}================================================================${NC}"
+
 # Checking if rootfs.sha256 exists
 if [ ! -f /rootfs.sha256 ]; then
-    echo "[ERROR] rootfs.sha256 missing"
+    echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing"
     emergency_shell
 fi
 ROOTFS_HASH="$(cat /rootfs.sha256)"
+
+
+# Boot on initramfs for debugging
+[ "$initrd_debug" = "1" ] && emergency_shell
 
 # --------------------------------------------------
 # 1. Console and virtual filesystem
@@ -38,7 +52,7 @@ sleep 1
 mdev -s
 mount -t tmpfs tmpfs /run
 
-echo "[OK] basic mounts ready"
+echo -e "${GREEN}[OK]${NC} basic mounts ready"
 
 # --------------------------------------------------
 # 2. Create loop devices
@@ -51,7 +65,7 @@ done
 # 3. Load modules
 # --------------------------------------------------
 FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3"
-MEDIA="loop cdrom sd_mod sr_mod usb-storage uas ahci libata" # Core devices
+MEDIA="loop cdrom sd_mod sr_mod usb-storage uas ahci libata zram" # Core devices
 LEGACY="ata_piix pata_generic" # old IDE
 NVME="nvme nvme_core" # modern NVMe
 HID="hid-generic usbhid i8042 atkbd libps2" # Keyboard
@@ -64,18 +78,90 @@ sleep 0.5
 mdev -s
 
 # --------------------------------------------------
-# 4. Detect Ventoy environment
+# 4. Zram swap
+# --------------------------------------------------
+
+TOTAL_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+
+# Do not enable zram on extremely small systems
+if [ "$TOTAL_KB" -lt 524288 ]; then
+  echo -e "${YELLOW}[INFO]${NC} RAM < 512MB, zram disabled"
+  :
+else
+  # Calculate size in KB
+  if [ "$TOTAL_KB" -lt 1048576 ]; then        # < 1 GB
+    ZRAM_KB=$((TOTAL_KB * 3 / 4))
+  elif [ "$TOTAL_KB" -lt 4194304 ]; then      # 1–4 GB
+    ZRAM_KB=$((TOTAL_KB / 2))
+  else                                        # > 4 GB
+    ZRAM_KB=2097152                            # cap 2 GB
+  fi
+
+  ZRAM_BYTES=$((ZRAM_KB * 1024))
+
+  echo -e "${YELLOW}[INFO]${NC} Configuring zram (${ZRAM_KB} KB)"
+
+  # Verify that the module is loaded
+  if ! lsmod | grep -q "^zram"; then
+    echo -e "${YELLOW}[INFO]${NC} zram module not loaded, skipping swap"
+  # Verify that the device exists in sysfs
+  elif [ ! -e /sys/block/zram0 ]; then
+    echo -e "${YELLOW}[INFO]${NC} zram device not present in sysfs"
+  else
+    # Secure node in /dev
+    if [ ! -b /dev/zram0 ]; then
+      if [ -e /sys/block/zram0/dev ]; then
+        read MAJOR MINOR < /sys/block/zram0/dev
+        mknod /dev/zram0 b "$MAJOR" "$MINOR" 2>/dev/null
+        chmod 660 /dev/zram0
+      fi
+    fi
+
+    if [ -b /dev/zram0 ]; then
+      # Choose algorithm if possible
+      if [ -e /sys/block/zram0/comp_algorithm ]; then
+        if grep -q "\[lz4\]" /sys/block/zram0/comp_algorithm 2>/dev/null; then
+          echo lz4 > /sys/block/zram0/comp_algorithm
+          ALGO="lz4"
+        elif grep -q "\[lzo\]" /sys/block/zram0/comp_algorithm 2>/dev/null; then
+          echo lzo > /sys/block/zram0/comp_algorithm
+          ALGO="lzo"
+        fi
+      fi
+
+      # Set size (IN BYTES)
+      if echo "$ZRAM_BYTES" > /sys/block/zram0/disksize 2>/dev/null; then
+        if mkswap /dev/zram0 >/dev/null 2>&1; then
+          if swapon -p 5 /dev/zram0 >/dev/null 2>&1; then
+            echo -e "${GREEN}[OK]${NC} zram swap enabled (${ZRAM_KB} KB, ${ALGO:-default})"
+          else
+            echo -e "${YELLOW}[WARN]${NC} swapon failed on zram"
+          fi
+        else
+          echo -e "${YELLOW}[WARN]${NC} mkswap failed on zram"
+        fi
+      else
+        echo -e "${YELLOW}[WARN]${NC} could not set zram disksize"
+      fi
+    else
+      echo -e "${YELLOW}[WARN]${NC} /dev/zram0 not available"
+    fi
+  fi
+fi
+
+# --------------------------------------------------
+# 5. Detect Ventoy environment
 # --------------------------------------------------
 
 if [ -d /ventoy ] || [ -d /vtoy ]; then
-    echo "[INFO] Ventoy environment detected"
+    echo -e "${YELLOW}[INFO]${NC} Ventoy environment detected"
     VENTOY_MODE=1
 fi
 
 # --------------------------------------------------
-# 5. Scan devices (3 attempts)
+# 6. Scan devices (3 attempts)
 # --------------------------------------------------
-echo "[INFO] scanning for boot media..."
+echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
 
 for attempt in 1 2 3; do
     echo "  attempt $attempt/3"
@@ -117,7 +203,7 @@ for attempt in 1 2 3; do
 
             # Are there any ISOs in the root of this partition?
             if ls "$ISO_MNT"/*.iso >/dev/null 2>&1; then
-                echo "[INFO] ISO partition detected on $DEV"
+                echo -e "${YELLOW}[INFO]${NC} ISO partition detected on $DEV"
         
                 for ISO in "$ISO_MNT"/*.iso; do
                     echo "      testing ISO $(basename "$ISO")"
@@ -132,9 +218,9 @@ for attempt in 1 2 3; do
                     if [ -f "$ISO_TEST/rootfs.squashfs" ]; then
                         HASH="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
                         
-                        echo "[INFO] rootfs.squashfs found on $(basename "$ISO")" 
+                        echo -e "${YELLOW}[INFO]${NC} rootfs.squashfs found on $(basename "$ISO")" 
                         if [ "$HASH" = "$ROOTFS_HASH" ]; then
-                            echo "[OK] matching ISO found via SHA256"
+                            echo -e "${GREEN}[OK]${NC} matching ISO found via SHA256"
                             FOUND_DEV="ventoy_iso"
                             ISO_MNT="$ISO_TEST"
                             break 3
@@ -154,40 +240,40 @@ for attempt in 1 2 3; do
     done
 done
 # --------------------------------------------------
-# 6. Fail if not found
+# 7. Fail if not found
 # --------------------------------------------------
 if [ -z "$FOUND_DEV" ]; then
-    echo "[ERROR] rootfs.squashfs not found"
+    echo -e "${RED}[ERROR]${NC} rootfs.squashfs not found"
     # echo "Available devices:" # Debug purposes
     # ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true # Debug purposes
     emergency_shell
 fi
 
-echo "[OK] found boot media at $FOUND_DEV"
+echo -e "${GREEN}[OK]${NC} found boot media at $FOUND_DEV"
 
 # --------------------------------------------------
-# 7. Mount squashfs
+# 8. Mount squashfs
 # --------------------------------------------------
 mkdir -p /mnt/ro_root
 
 if [ "$FOUND_DEV" = "ventoy_iso" ]; then
-    echo "[INFO] mounting squashfs from Ventoy ISO"
+    echo -e "${YELLOW}[INFO]${NC} mounting squashfs from Ventoy ISO"
     mount -t squashfs "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || emergency_shell
 else
-    echo "[INFO] mounting squashfs from physical media"
+    echo -e "${YELLOW}[INFO]${NC} mounting squashfs from physical media"
     mount -t squashfs -o loop "$ISO_MNT/rootfs.squashfs" /mnt/ro_root || emergency_shell
 fi
 
-echo "[OK] squashfs mounted"
+echo -e "${GREEN}[OK]${NC} squashfs mounted"
 
 # ---------------------------------------------
-# 7. OverlayFS
+# 9. OverlayFS
 # ---------------------------------------------
 mkdir -p /mnt/ram
 mkdir -p /mnt/newroot
 
 mount -t tmpfs tmpfs /mnt/ram || {
-    echo "[ERROR] tmpfs mount failed"
+    echo -e "${RED}[ERROR]${NC} tmpfs mount failed"
     emergency_shell
 }
 
@@ -197,14 +283,24 @@ mkdir -p /mnt/ram/work
 mount -t overlay overlay \
     -o lowerdir=/mnt/ro_root,upperdir=/mnt/ram/upper,workdir=/mnt/ram/work \
     /mnt/newroot || {
-        echo "[ERROR] overlay mount failed"
+        echo -e "${RED}[ERROR]${NC} overlay mount failed"
         emergency_shell
     }
 
-echo "[OK] overlay mounted"
+echo -e "${GREEN}[OK]${NC} overlay mounted"
 
 # --------------------------------------------------
-# 9. New root virtual filesystems
+# 9.5 Live Configuration (opcional)
+# --------------------------------------------------
+if echo "$(cat /proc/cmdline)" | grep -q "neoconfig=1"; then
+    echo -e "${YELLOW}[INFO]${NC} Running Live configuration..."
+    if [ -x /live-config.sh ]; then
+        /live-config.sh
+    fi
+fi
+
+# --------------------------------------------------
+# 10. New root virtual filesystems
 # --------------------------------------------------
 mkdir -p /mnt/newroot/proc
 mkdir -p /mnt/newroot/sys
@@ -219,7 +315,7 @@ mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts
 mount -t tmpfs tmpfs /mnt/newroot/run
 
 # --------------------------------------------------
-# 10. machine-id (systemd) & minimal fstab
+# 11. machine-id (systemd) & minimal fstab
 # --------------------------------------------------
 if [ -x /mnt/newroot/lib/systemd/systemd ]; then
     mkdir -p /mnt/newroot/etc
@@ -234,7 +330,7 @@ tmpfs /run   tmpfs defaults  0 0
 EOF
 
 # --------------------------------------------------
-# 11. Switch root (universal)
+# 12. Switch root (universal)
 # --------------------------------------------------
 if [ "$FOUND_DEV" != "ventoy_iso" ]; then
     umount "$ISO_TEST" 2>/dev/null || true

@@ -46,6 +46,8 @@ Repository Structure
 │   ├── 06-systemd-handoff.html
 │   ├── 07-debugging.html
 │   ├── 08-ventoy-support.html
+│   ├── 09-live-config.html
+│   ├── 10-boot-modes.html
 │   └── README.html
 ├── initramfs
 │   ├── busybox
@@ -96,11 +98,18 @@ Usage
 -----
 
 1.  Clone the repository
+
+```
+git clone https://github.com/cargabsj175/neonatox-live-boot.git
+```
+
 2.  Place a static BusyBox binary in `initramfs/busybox`
 3.  Customize `iso/background.png` if desired
 4.  Run the build script as root:
 
+```
 sudo ./build.sh
+```
 
 The resulting ISO will be generated in:
 

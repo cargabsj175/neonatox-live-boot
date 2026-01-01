@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Boot Modes - Neonatox Live Boot</title>
+</head>
+<body>
+
+<header>
+    <h1>Boot Modes - Neonatox Live Boot</h1>
+    <p>Official boot options and kernel flags for the Neonatox Live system</p>
+</header>
+
+<main>
+
+<h2>Overview</h2>
+<p>
+Neonatox Live provides multiple boot modes designed for normal usage, live system
+configuration, hardware compatibility, and low-level debugging.
+</p>
+<p>
+All modes are selected from the GRUB boot menu and are implemented early in the
+boot process, primarily inside the <strong>initramfs</strong>.
+</p>
+
+<hr>
+
+<h2>Available Boot Modes</h2>
+
+<h3>1. Live (Default)</h3>
+<pre>
+linux /boot/vmlinuz quiet loglevel=3
+</pre>
+<p>
+Standard live boot mode intended for everyday use.
+</p>
+<ul>
+<li>Minimal kernel output</li>
+<li>Fast boot</li>
+<li>No interactive configuration</li>
+</ul>
+
+<hr>
+
+<h3>2. Live (Language & Live User Config)</h3>
+<pre>
+linux /boot/vmlinuz quiet <span class="flag">neoconfig=1</span>
+</pre>
+<p>
+Enables the interactive live configuration system during early boot.
+</p>
+<ul>
+<li>Language selection</li>
+<li>Keyboard layout</li>
+<li>Timezone</li>
+<li>Live user configuration</li>
+</ul>
+
+<div class="note">
+<strong>Note:</strong> This mode explicitly triggers the live configuration logic
+and does not affect other boot modes.
+</div>
+
+<hr>
+
+<h3>3. Live (Failsafe graphics)</h3>
+<pre>
+linux /boot/vmlinuz quiet nomodeset vga=normal
+</pre>
+<p>
+Fallback graphics mode for systems with problematic or unsupported GPUs.
+</p>
+<ul>
+<li>Disables kernel mode setting (KMS)</li>
+<li>Improves compatibility with legacy hardware</li>
+<li>Recommended for virtual machines and older systems</li>
+</ul>
+
+<hr>
+
+<h3>4. Live (DEBUG)</h3>
+<pre>
+linux /boot/vmlinuz <span class="flag">debug=1</span> loglevel=7
+</pre>
+<p>
+High-verbosity kernel debug mode.
+</p>
+<ul>
+<li>Maximum kernel log output</li>
+<li>Useful for driver, mount, and hardware debugging</li>
+<li>May significantly slow down boot</li>
+</ul>
+
+<hr>
+
+<h3>5. Live (Initramfs debug)</h3>
+<pre>
+linux /boot/vmlinuz <span class="flag">initrd_debug=1</span>
+</pre>
+<p>
+Debug mode for the initramfs stage.
+</p>
+<ul>
+<li>Stops early boot process</li>
+<li>Drops into an initramfs shell</li>
+<li>Allows manual inspection of devices, mounts, and scripts</li>
+</ul>
+
+<div class="note">
+<strong>Important:</strong> This mode is intended for developers and advanced users.
+No automatic boot into the live system will occur unless manually continued.
+</div>
+
+<hr>
+
+<h2>Supported Kernel Flags</h2>
+<ul>
+<li><span class="flag">neoconfig=1</span> – Enables interactive live configuration</li>
+<li><span class="flag">initrd_debug=1</span> – Opens an early initramfs debug shell</li>
+<li><span class="flag">debug=1</span> – Enables kernel debugging</li>
+<li><span class="flag">loglevel=7</span> – Maximum kernel log verbosity</li>
+<li><span class="flag">nomodeset</span> – Disables kernel mode setting</li>
+</ul>
+
+<hr>
+
+<h2>Boot Flow Summary</h2>
+<pre>
+Firmware (BIOS/UEFI)
+        ↓
+GRUB
+        ↓
+Linux Kernel
+        ↓
+initramfs
+        ↓
+(optional) live-config (neoconfig=1)
+        ↓
+switch_root
+        ↓
+init system (systemd or /sbin/init)
+</pre>
+
+</main>
+
+</body>
+</html>

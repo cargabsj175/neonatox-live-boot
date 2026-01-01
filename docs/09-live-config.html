@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Live Configuration - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Live Configuration Stage (<code>live-config.sh</code>)</h1>
+
+<h2>Purpose</h2>
+
+<p>
+<code>live-config.sh</code> implements an <strong>optional early configuration
+stage</strong> for Neonatox Live Boot. Its purpose is to configure language,
+keyboard, timezone, and the live user <strong>before the real root filesystem
+is activated</strong>.
+</p>
+
+<p>
+This stage is <strong>executed inside the initramfs</strong> and is enabled
+<strong>only when explicitly requested</strong> by the user through the
+bootloader.
+</p>
+
+<hr>
+
+<h2>Design Philosophy</h2>
+
+<p>
+The design of <code>live-config.sh</code> follows the core principles of
+Neonatox Live Boot:
+</p>
+
+<ul>
+  <li>Explicit behavior</li>
+  <li>No implicit automation</li>
+  <li>Deterministic execution</li>
+  <li>Safe failure modes</li>
+  <li>Educational clarity</li>
+</ul>
+
+<p>
+By default, the live system boots non-interactively. User interaction is
+introduced <strong>only when explicitly selected</strong>.
+</p>
+
+<hr>
+
+<h2>Activation via GRUB</h2>
+
+<p>
+The configuration stage is enabled by selecting the dedicated GRUB menu entry:
+</p>
+
+<pre>
+menuentry "Neonatox Live (Lang &amp; live user config)" {
+    linux /boot/vmlinuz quiet neoconfig=1
+    initrd /boot/initramfs.img
+}
+</pre>
+
+<p>
+The presence of the kernel parameter <code>neoconfig=1</code> activates
+<code>live-config.sh</code>. If the parameter is absent, the configuration stage
+is skipped entirely.
+</p>
+
+<hr>
+
+<h2>Position in the Boot Flow</h2>
+
+<p>
+When <code>neoconfig=1</code> is present, the boot flow becomes:
+</p>
+
+<pre>
+initramfs
+  ↓
+live-config.sh
+  ↓
+switch_root
+  ↓
+systemd (PID 1)
+  ↓
+ready-to-use live system
+</pre>
+
+<p>
+Without <code>neoconfig=1</code>, the system proceeds directly from the
+initramfs to <code>switch_root</code>.
+</p>
+
+<hr>
+
+<h2>Interactive Language Selection</h2>
+
+<p>
+If <code>/dev/tty1</code> is available, the script presents an optional
+interactive menu allowing the user to select:
+</p>
+
+<ul>
+  <li>System language</li>
+  <li>Timezone</li>
+  <li>Keyboard layout</li>
+</ul>
+
+<p>
+Characteristics:
+</p>
+
+<ul>
+  <li>Timeout-safe (60 seconds)</li>
+  <li>Default selection if no input is provided</li>
+  <li>No dependency on dialog or ncurses</li>
+  <li>Direct output to <code>/dev/tty1</code></li>
+</ul>
+
+<p>
+If no interactive console is available, the script continues automatically
+using default values.
+</p>
+
+<hr>
+
+<h2>Locale Configuration</h2>
+
+<p>
+The selected locale is written explicitly to:
+</p>
+
+<pre>
+/etc/locale.conf
+</pre>
+
+<p>
+Example:
+</p>
+
+<pre>
+LANG=es_VE.UTF-8
+</pre>
+
+<p>
+No helper tools such as <code>localectl</code> are used. This ensures predictable
+behavior regardless of the underlying distribution.
+</p>
+
+<hr>
+
+<h2>Timezone Configuration</h2>
+
+<p>
+If the selected timezone exists in the target system, the script:
+</p>
+
+<ul>
+  <li>Creates <code>/etc/localtime</code> as a symbolic link</li>
+  <li>Writes <code>/etc/timezone</code> when applicable</li>
+</ul>
+
+<p>
+This guarantees compatibility with both Arch-like and Debian-like layouts.
+</p>
+
+<hr>
+
+<h2>Keyboard Configuration</h2>
+
+<h3>Console Keyboard</h3>
+
+<p>
+If console keymaps are available, the following file is generated:
+</p>
+
+<pre>
+/etc/vconsole.conf
+</pre>
+
+<h3>X11 Keyboard</h3>
+
+<p>
+If X11 configuration directories exist, a static keyboard configuration file is
+created:
+</p>
+
+<pre>
+/etc/X11/xorg.conf.d/00-keyboard.conf
+</pre>
+
+<p>
+This avoids reliance on runtime auto-detection and ensures consistency.
+</p>
+
+<hr>
+
+<h2>Live User Creation</h2>
+
+<p>
+The live environment uses a single predefined user:
+</p>
+
+<ul>
+  <li>Username: <code>neonatox</code></li>
+  <li>UID/GID: <code>999</code></li>
+  <li>Home directory: <code>/home/neonatox</code></li>
+</ul>
+
+<p>
+A fixed identity avoids permission issues with OverlayFS and simplifies the
+boot logic.
+</p>
+
+<hr>
+
+<h2>Password Handling</h2>
+
+<p>
+The user password is defined in the script and hashed using BusyBox
+<code>cryptpw</code>.
+</p>
+
+<p>
+This process does not rely on PAM, interactive tools, or external helpers,
+making it safe to run inside the initramfs.
+</p>
+
+<hr>
+
+<h2>Group Membership</h2>
+
+<p>
+The live user is appended to common system groups if they exist:
+</p>
+
+<ul>
+  <li>adm</li>
+  <li>video</li>
+  <li>wheel</li>
+  <li>seat</li>
+  <li>input</li>
+</ul>
+
+<p>
+Membership is added safely without duplication.
+</p>
+
+<hr>
+
+<h2>Passwordless Sudo</h2>
+
+<p>
+To provide a fully usable live environment, passwordless sudo is enabled via:
+</p>
+
+<pre>
+/etc/sudoers.d/99-live
+</pre>
+
+<p>
+This configuration applies only to the live session.
+</p>
+
+<hr>
+
+<h2>TTY Autologin (systemd only)</h2>
+
+<p>
+Automatic login on TTY1 is currently implemented <strong>only for systemd-based
+systems</strong>.
+</p>
+
+<p>
+This is achieved by installing a systemd service override:
+</p>
+
+<pre>
+/etc/systemd/system/getty@tty1.service.d/override.conf
+</pre>
+
+<p>
+This approach is used because it is the cleanest and least intrusive method
+available when systemd is present.
+</p>
+
+<p>
+On systems using alternative init systems such as OpenRC or SysVinit, no
+autologin mechanism is currently applied. The live system will still function
+correctly, but login will be manual.
+</p>
+
+<p>
+Future adaptations may introduce equivalent mechanisms for other init systems,
+but these are intentionally not implemented at this stage.
+</p>
+
+<hr>
+
+<h2>User Startup Files</h2>
+
+<h3>.xinitrc</h3>
+
+<p>
+Automatically starts the XFCE desktop:
+</p>
+
+<pre>
+exec startxfce4
+</pre>
+
+<h3>.bash_profile</h3>
+
+<p>
+Automatically launches <code>startx</code> when logging in from the console.
+</p>
+
+<p>
+This allows a complete graphical session without a display manager.
+</p>
+
+<hr>
+
+<h2>Desktop Environment Requirement</h2>
+
+<p>
+The live configuration stage assumes the presence of the
+<strong>XFCE desktop environment</strong>.
+</p>
+
+<p>
+Specifically, the following command must be available:
+</p>
+
+<pre>
+startxfce4
+</pre>
+
+<p>
+On distributions other than Neonatox, the live environment will operate
+correctly only if <code>xfce4</code> (or an equivalent package providing
+<code>startxfce4</code>) is installed.
+</p>
+
+<p>
+If <code>startxfce4</code> is not present, the system will still boot normally,
+but no graphical session will be started automatically.
+</p>
+
+<hr>
+
+<h2>Portability and Init System Independence</h2>
+
+<p>
+Although Neonatox Live Boot uses <code>systemd</code> by default, the core logic
+of <code>live-config.sh</code> is largely <strong>init-system independent</strong>.
+</p>
+
+<p>
+All configuration steps are implemented using:
+</p>
+
+<ul>
+  <li>Direct file manipulation</li>
+  <li>POSIX-compatible shell logic</li>
+  <li>BusyBox-compatible utilities</li>
+</ul>
+
+<p>
+The only systemd-specific component currently implemented is TTY autologin.
+This limitation is explicit and intentional.
+</p>
+
+<p>
+The design allows future adaptation to OpenRC or SysVinit by replacing
+init-specific handling without altering the core configuration logic.
+</p>
+
+<hr>
+
+<h2>What This Script Does Not Do</h2>
+
+<ul>
+  <li>Does not detect or mount devices</li>
+  <li>Does not manage filesystems</li>
+  <li>Does not start services</li>
+  <li>Does not require systemd to execute</li>
+</ul>
+
+<p>
+Its scope is intentionally limited to early live-system configuration.
+</p>
+
+<hr>
+
+<h2>Summary</h2>
+
+<p>
+<code>live-config.sh</code> is an <strong>optional pre-root configuration stage</strong>
+controlled explicitly by the bootloader.
+</p>
+
+<p>
+The initramfs makes the system boot.<br>
+<strong>live-config.sh makes the system personal — without contaminating the
+root filesystem.</strong>
+</p>
+
+</body>
+</html>

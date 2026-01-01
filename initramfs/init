@@ -39,10 +39,6 @@ if [ ! -f /rootfs.sha256 ]; then
 fi
 ROOTFS_HASH="$(cat /rootfs.sha256)"
 
-
-# Boot on initramfs for debugging
-[ "$initrd_debug" = "1" ] && emergency_shell
-
 # --------------------------------------------------
 # 1. Console and virtual filesystem
 # --------------------------------------------------
@@ -78,7 +74,14 @@ sleep 0.5
 mdev -s
 
 # --------------------------------------------------
-# 4. Zram swap
+# 4. Initramfs debug
+# --------------------------------------------------
+
+# Boot on initramfs for debugging
+[ "$initrd_debug" = "1" ] && emergency_shell
+
+# --------------------------------------------------
+# 5. Zram swap
 # --------------------------------------------------
 
 TOTAL_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
@@ -150,7 +153,7 @@ else
 fi
 
 # --------------------------------------------------
-# 5. Detect Ventoy environment
+# 6. Detect Ventoy environment
 # --------------------------------------------------
 
 if [ -d /ventoy ] || [ -d /vtoy ]; then
@@ -159,7 +162,7 @@ if [ -d /ventoy ] || [ -d /vtoy ]; then
 fi
 
 # --------------------------------------------------
-# 6. Scan devices (3 attempts)
+# 7. Scan devices (3 attempts)
 # --------------------------------------------------
 echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
 
@@ -240,7 +243,7 @@ for attempt in 1 2 3; do
     done
 done
 # --------------------------------------------------
-# 7. Fail if not found
+# 8. Fail if not found
 # --------------------------------------------------
 if [ -z "$FOUND_DEV" ]; then
     echo -e "${RED}[ERROR]${NC} rootfs.squashfs not found"
@@ -252,7 +255,7 @@ fi
 echo -e "${GREEN}[OK]${NC} found boot media at $FOUND_DEV"
 
 # --------------------------------------------------
-# 8. Mount squashfs
+# 9. Mount squashfs
 # --------------------------------------------------
 mkdir -p /mnt/ro_root
 
@@ -267,7 +270,7 @@ fi
 echo -e "${GREEN}[OK]${NC} squashfs mounted"
 
 # ---------------------------------------------
-# 9. OverlayFS
+# 10. OverlayFS
 # ---------------------------------------------
 mkdir -p /mnt/ram
 mkdir -p /mnt/newroot
@@ -290,7 +293,7 @@ mount -t overlay overlay \
 echo -e "${GREEN}[OK]${NC} overlay mounted"
 
 # --------------------------------------------------
-# 9.5 Live Configuration (opcional)
+# 11 Live Configuration (opcional)
 # --------------------------------------------------
 if echo "$(cat /proc/cmdline)" | grep -q "neoconfig=1"; then
     echo -e "${YELLOW}[INFO]${NC} Running Live configuration..."
@@ -300,7 +303,7 @@ if echo "$(cat /proc/cmdline)" | grep -q "neoconfig=1"; then
 fi
 
 # --------------------------------------------------
-# 10. New root virtual filesystems
+# 12. New root virtual filesystems
 # --------------------------------------------------
 mkdir -p /mnt/newroot/proc
 mkdir -p /mnt/newroot/sys
@@ -315,7 +318,7 @@ mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts
 mount -t tmpfs tmpfs /mnt/newroot/run
 
 # --------------------------------------------------
-# 11. machine-id (systemd) & minimal fstab
+# 13. machine-id (systemd) & minimal fstab
 # --------------------------------------------------
 if [ -x /mnt/newroot/lib/systemd/systemd ]; then
     mkdir -p /mnt/newroot/etc
@@ -330,7 +333,7 @@ tmpfs /run   tmpfs defaults  0 0
 EOF
 
 # --------------------------------------------------
-# 12. Switch root (universal)
+# 14. Switch root (universal)
 # --------------------------------------------------
 if [ "$FOUND_DEV" != "ventoy_iso" ]; then
     umount "$ISO_TEST" 2>/dev/null || true

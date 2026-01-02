@@ -18,19 +18,18 @@ ISO_TEST="/mnt/iso_test"
 FOUND_DEV=""
 VENTOY_MODE=0
 
-
 # --------------------------------------------------
 # Core functions
 # --------------------------------------------------
 emergency_shell() {
-	
     echo -e "${RED}[EMERGENCY]${NC} Dropping to shell"
     exec sh
 }
 
-echo -e "${YELLOW}================================================================${NC}"
-echo -e "${YELLOW}=====${NC} ${GREEN}Neonatox Live Boot - v0.5 Carlos Sanchez - 2007-2026 ${YELLOW}=====${NC}"
-echo -e "${YELLOW}================================================================${NC}"
+echo -e "${YELLOW}======================================================================${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
+echo -e "${YELLOW}======================================================================${NC}"
 
 # Checking if rootfs.sha256 exists
 if [ ! -f /rootfs.sha256 ]; then
@@ -47,6 +46,8 @@ mount -t sysfs sysfs /sys
 sleep 1
 mdev -s
 mount -t tmpfs tmpfs /run
+
+CMDLINE="$(cat /proc/cmdline)"
 
 echo -e "${GREEN}[OK]${NC} basic mounts ready"
 
@@ -167,7 +168,7 @@ fi
 echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
 
 for attempt in 1 2 3; do
-    echo "  attempt $attempt/3"
+    echo "  ${YELLOW}[SCAN]${NC} attempt $attempt/3"
 
     # NVMe doesn't need scanning, just wait a little while
     [ $attempt -eq 1 ] && sleep 0.5
@@ -189,52 +190,90 @@ for attempt in 1 2 3; do
     do
         [ -e "$DEV" ] || continue
 
-        echo "    probing $DEV"
+        echo "  ${YELLOW}[SCAN]${NC} probing $DEV"
         mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
 
         # --------------------------------------------------
-        # A) Normal ISO (rootfs directly)
+        # A) Normal ISO (compare hash & mount rootfs)
         # --------------------------------------------------
         if [ -f "$ISO_MNT/rootfs.squashfs" ]; then
+            
+            # [HASH] verify rootfs.sha256 exists
+            if [ ! -f "$ISO_MNT/rootfs.sha256" ]; then
+                echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing in ISO"
+                emergency_shell
+            fi
+
+            if echo "$CMDLINE" | grep -q "checkhash=1"; then
+                echo -e "${YELLOW}[INFO]${NC} full rootfs hash verification"
+                CALC="$(sha256sum "$ISO_MNT/rootfs.squashfs" | awk '{print $1}')"
+                if [ "$CALC" = "$ROOTFS_HASH" ]; then
+                    echo -e "${GREEN}[OK]${NC} rootfs.squashfs hash verified (ISO)"
+                else
+                    emergency_shell
+                fi
+            else
+                echo -e "${YELLOW}[INFO]${NC} fast hash check (file compare)"
+                if [ "$(cat "$ISO_MNT/rootfs.sha256")" = "$ROOTFS_HASH" ]; then
+                    echo -e "${GREEN}[OK]${NC} rootfs.sha256 verified (ISO)"
+                else
+                    emergency_shell
+                fi
+            fi
+
             FOUND_DEV="$DEV"
-                break 2  # Break both loops
+            break 2  # Break both loops
         fi
-        # --------------------------------------------------
-        # B) Ventoy: partition with ISOs in root
-        # --------------------------------------------------
-        if [ "$VENTOY_MODE" = "1" ]; then
 
-            # Are there any ISOs in the root of this partition?
-            if ls "$ISO_MNT"/*.iso >/dev/null 2>&1; then
-                echo -e "${YELLOW}[INFO]${NC} ISO partition detected on $DEV"
-        
-                for ISO in "$ISO_MNT"/*.iso; do
-                    echo "      testing ISO $(basename "$ISO")"
-                    # Hack: The busybox losetup applet does not have the --show argument
-                    LOOP="$(losetup -f "$ISO" && losetup -a | grep "$ISO" | sed 's/:.*//')" || continue
-        
-                    mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
-                        losetup -d "$LOOP"
-                        continue
-                    }
+        # --------------------------------------------------
+        # B) Ventoy ISO (search iso, compare hash & mount rootfs)
+        # --------------------------------------------------
+        # Are there any ISOs in the root of this partition?
+        ISO_LIST="$(ls "$ISO_MNT"/*.iso 2>/dev/null)"
+        if [ "$VENTOY_MODE" = "1" ] && [ -n "$ISO_LIST" ]; then
+            echo -e "${YELLOW}[INFO]${NC} ISO partition detected on $DEV"
+            
+            for ISO in "$ISO_MNT"/*.iso; do
+                echo "  ${YELLOW}[INFO]${NC} testing ISO $(basename "$ISO")"
+                # Hack: The busybox losetup applet does not have the --show argument
+                LOOP="$(losetup -f "$ISO" && losetup -a | grep "$ISO" | sed 's/:.*//')" || continue
+                mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
+                    losetup -d "$LOOP"
+                    continue
+                }
 
-                    if [ -f "$ISO_TEST/rootfs.squashfs" ]; then
-                        HASH="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
-                        
-                        echo -e "${YELLOW}[INFO]${NC} rootfs.squashfs found on $(basename "$ISO")" 
-                        if [ "$HASH" = "$ROOTFS_HASH" ]; then
-                            echo -e "${GREEN}[OK]${NC} matching ISO found via SHA256"
-                            FOUND_DEV="ventoy_iso"
-                            ISO_MNT="$ISO_TEST"
-                            break 3
-                        fi
+                if [ -f "$ISO_TEST/rootfs.squashfs" ]; then
+                    
+                    if [ ! -f "$ISO_TEST/rootfs.sha256" ]; then
+                        echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing in ISO"
+                        emergency_shell
                     fi
+
+                if echo "$CMDLINE" | grep -q "checkhash=1"; then
+                    echo -e "${YELLOW}[INFO]${NC} full rootfs hash verification"
+                    CALC="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
+                    if [ "$CALC" = "$ROOTFS_HASH" ]; then
+                        echo -e "${GREEN}[OK]${NC} rootfs.squashfs hash verified (Ventoy)"
+                    else
+                        emergency_shell
+                    fi
+                else
+                    echo -e "${YELLOW}[INFO]${NC} fast hash check (file compare)"
+                    if [ "$(cat "$ISO_TEST/rootfs.sha256")" = "$ROOTFS_HASH" ]; then
+                        echo -e "${GREEN}[OK]${NC} rootfs.sha256 verified (Ventoy)"
+                    else
+                        emergency_shell
+                    fi
+                fi
+                    FOUND_DEV="ventoy_iso"
+                    ISO_MNT="$ISO_TEST"
+                    break 3
+                fi
                     if [ "$FOUND_DEV" != "ventoy_iso" ]; then
                         umount "$ISO_TEST" 2>/dev/null
-                        losetup -d "$LOOP" 2>/dev/null
+                        [ -n "$LOOP" ] && losetup -d "$LOOP" 2>/dev/null
                     fi
-                done
-            fi
+            done
         fi
         # Unmount only if it is NOT the correct Ventoy ISO
         if [ "$FOUND_DEV" != "ventoy_iso" ]; then
@@ -242,6 +281,7 @@ for attempt in 1 2 3; do
         fi
     done
 done
+        
 # --------------------------------------------------
 # 8. Fail if not found
 # --------------------------------------------------
@@ -293,10 +333,10 @@ mount -t overlay overlay \
 echo -e "${GREEN}[OK]${NC} overlay mounted"
 
 # --------------------------------------------------
-# 11 Live Configuration (opcional)
+# 11. Live Configuration (opcional)
 # --------------------------------------------------
-if echo "$(cat /proc/cmdline)" | grep -q "neoconfig=1"; then
-    echo -e "${YELLOW}[INFO]${NC} Running Live configuration..."
+if echo "$CMDLINE" | grep -q "neoconfig=1"; then
+    echo -e "${YELLOW}[INFO]${NC} Ejecutando configuración Live..."
     if [ -x /live-config.sh ]; then
         /live-config.sh
     fi

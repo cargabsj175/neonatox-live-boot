@@ -6,19 +6,52 @@ set -e
 # BIOS + UEFI + GRUB
 # ==========================================================
 
-PATH=/sbin:/bin
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-ISO_NAME="neonatox"
-VERSION="2026"
+# ---------------------------------------------
+# Default values (safe fallback)
+# ---------------------------------------------
+
+ISO_NAME="linux-live"
+VERSION="1"
 ARCH="$(uname -m)"
-LABEL="NEONATOX_LIVE"
+LABEL="LINUX_LIVE"
 
-FULLVER="$(uname -r)"
-KBASE="$(echo "$FULLVER" | cut -d. -f1,2)"
+# ---------------------------------------------
+# Override only if /etc/os-release exists
+# ---------------------------------------------
+if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
 
-VMLINUX=""
+    # Base name (lowercase, ISO filename)
+    if [ -n "${ID:-}" ]; then
+        BASE_NAME="$(printf '%s\n' "$ID" | tr '[:upper:]' '[:lower:]')"
+    elif [ -n "${NAME:-}" ]; then
+        BASE_NAME="$(printf '%s\n' "$NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr ' ' '-' )"
+    else
+        BASE_NAME="linux"
+    fi
 
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+    ISO_NAME="${BASE_NAME}-live"
+
+    # Version
+    if [ -n "${VERSION_ID:-}" ]; then
+        VERSION="$VERSION_ID"
+    fi
+
+    # LABEL always uppercase
+    LABEL="$(printf '%s_LIVE\n' "$BASE_NAME" | tr '[:lower:]' '[:upper:]')"
+else
+    # fallback consistency
+    ISO_NAME="linux-live"
+    LABEL="LINUX_LIVE"
+fi
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd -P)
+
 WORKDIR="/tmp/neonatox-live"
 ISO_DIR="$WORKDIR/iso"
 OUTDIR="$SCRIPT_DIR/output"
@@ -52,7 +85,6 @@ trap 'echo -e "${RED}[FATAL]${NC} error in section: $CURRENT_SECTION (line $LINE
 CURRENT_SECTION="pre-checks"
 
 echo -e "${YELLOW}[CHECK]${NC} validating environment..."
-
 
 REQUIRED_BINS="
 mksquashfs
@@ -117,10 +149,10 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 CURRENT_SECTION="rootfs squashfs"
 
 clear
-echo -e "${YELLOW}================================================================${NC}"
-echo -e "${YELLOW}=====${NC} ${GREEN}Neonatox Live Boot - v0.5 Carlos Sanchez - 2007-2026 ${YELLOW}=====${NC}"
-echo -e "${YELLOW}================================================================${NC}"
-
+echo -e "${YELLOW}======================================================================${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
+echo -e "${YELLOW}======================================================================${NC}"
 
 EXCLUDES="
 /boot/*
@@ -139,7 +171,6 @@ EXCLUDES="
 /var/tmp/*
 /home/*
 /usr/src/*
-/usr/lib/firmware/*
 "
 
 echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
@@ -147,56 +178,78 @@ mksquashfs / "$SQUASHFS"  -e $(echo $EXCLUDES) -comp xz -b 1024K -Xbcj x86 -alwa
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."
-ROOTFS_HASH_FILE="$WORKDIR/rootfs.sha256"
+ROOTFS_HASH_FILE="$ISO_DIR/rootfs.sha256"
 
 CURRENT_SECTION="rootfs checksum"
 sha256sum "$SQUASHFS" | awk '{print $1}' > "$ROOTFS_HASH_FILE"
 echo -e "${GREEN}[OK]${NC} rootfs checksum generated"
-
 
 # ----------------------------------------------------------
 # CHOOSE KERNEL
 # ----------------------------------------------------------
 CURRENT_SECTION="kernel selection"
 
-echo -e "${YELLOW}[INFO]${NC} Searching kernel..."
-KLIST=$(ls /boot/vmlinuz-* 2>/dev/null | grep "$KBASE" | sort || true)
+echo -e "${YELLOW}[INFO]${NC} Detecting running kernel from /proc/cmdline..."
 
-if [ -z "$KLIST" ]; then
-    echo "[ERROR] kernel not found"
+VMLINUX=""
+BOOT_IMAGE=""
+
+# Extract BOOT_IMAGE
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in
+        BOOT_IMAGE=*)
+            BOOT_IMAGE="${arg#BOOT_IMAGE=}"
+            break
+            ;;
+    esac
+done
+
+if [ -z "$BOOT_IMAGE" ]; then
+    echo -e "${RED}[ERROR]${NC} BOOT_IMAGE not found in /proc/cmdline"
     exit 1
 fi
 
-COUNT=$(echo "$KLIST" | wc -l)
-
-if [ "$COUNT" -eq 1 ]; then
-    VMLINUX="$KLIST"
+# Resolve kernel path
+if [ -f "$BOOT_IMAGE" ]; then
+    VMLINUX="$BOOT_IMAGE"
+elif [ -f "/boot$BOOT_IMAGE" ]; then
+    VMLINUX="/boot$BOOT_IMAGE"
+elif [ -f "/boot/$(basename "$BOOT_IMAGE")" ]; then
+    VMLINUX="/boot/$(basename "$BOOT_IMAGE")"
 else
-    echo "MULTIPLE kernels found:"
-    i=1
-    for k in $KLIST; do
-        echo "  $i) $k"
-        eval KPATH_$i="$k"
-        i=$((i+1))
-    done
-    read -rp "Select kernel number: " SEL
-    eval SELECTED=\$KPATH_"$SEL"
-    [ -z "$SELECTED" ] && exit 1
-    VMLINUX="$SELECTED"
+    echo -e "${RED}[ERROR]${NC} Kernel image not found"
+    echo "Tried:"
+    echo "  $BOOT_IMAGE"
+    echo "  /boot$BOOT_IMAGE"
+    echo "  /boot/$(basename "$BOOT_IMAGE")"
+    exit 1
 fi
 
+# Kernel real version
+KVER="$(uname -r)"
+
+if [ ! -d "/lib/modules/$KVER" ]; then
+    echo -e "${RED}[ERROR]${NC} Kernel modules not found: /lib/modules/$KVER"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK]${NC} Kernel detected:"
+echo "  BOOT_IMAGE : $BOOT_IMAGE"
+echo "  Kernel     : $VMLINUX"
+echo "  Version    : $KVER"
+echo "  Modules    : /lib/modules/$KVER"
+
+# ----------------------------------------------------------
+# KERNEL COPY
+# ----------------------------------------------------------
 CURRENT_SECTION="kernel copy"
 
-[ -f "$VMLINUX" ] || {
-    echo -e "${RED}[ERROR]${NC} kernel image not found: $VMLINUX"
-    exit 20
-}
+cp "$VMLINUX" "$BOOT_DIR/vmlinuz" || exit 1
+chmod 0644 "$BOOT_DIR/vmlinuz"
 
-cp "$VMLINUX" "$BOOT_DIR/vmlinuz"
+FULLVER="$KVER"
 
-
-FULLVER=$(uname -r)
-echo -e "${GREEN}[OK]${NC} Kernel version: $FULLVER"
+echo -e "${GREEN}[OK]${NC} Kernel copied to ISO"
 
 # ----------------------------------------------------------
 # INITRAMFS BUILD
@@ -359,27 +412,27 @@ terminal_output gfxterm
 
 background_image /boot/grub/theme/background.png
 
-menuentry "${ISO_NAME} ${VERSION} live" {
+menuentry "${ISO_NAME%-live} ${VERSION} live" {
     linux /boot/vmlinuz quiet loglevel=3
     initrd /boot/initramfs.img
 }
 
-menuentry "${ISO_NAME} ${VERSION} live (Language & Live User Config)" {
+menuentry "${ISO_NAME%-live} ${VERSION} live (Language & Live User Config)" {
     linux /boot/vmlinuz quiet neoconfig=1
     initrd /boot/initramfs.img
 }
 
-menuentry "${ISO_NAME} ${VERSION} live (Failsafe graphics)" {
+menuentry "${ISO_NAME%-live} ${VERSION} live (Failsafe graphics)" {
     linux /boot/vmlinuz quiet nomodeset vga=normal
     initrd /boot/initramfs.img
 }
 
-menuentry "${ISO_NAME} ${VERSION} live (DEBUG)" {
+menuentry "${ISO_NAME%-live} ${VERSION} live (DEBUG)" {
     linux /boot/vmlinuz debug=1 loglevel=7
     initrd /boot/initramfs.img
 }
 
-menuentry "${ISO_NAME} ${VERSION} live (Initramfs debug)" {
+menuentry "${ISO_NAME%-live} ${VERSION} live (Initramfs debug)" {
     linux /boot/vmlinuz initrd_debug=1
     initrd /boot/initramfs.img
 }

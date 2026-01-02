@@ -62,10 +62,10 @@ done
 # 3. Load modules
 # --------------------------------------------------
 FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3"
-MEDIA="loop cdrom sd_mod sr_mod usb-storage uas ahci libata zram" # Core devices
-LEGACY="ata_piix pata_generic" # old IDE
-NVME="nvme nvme_core" # modern NVMe
-HID="hid-generic usbhid i8042 atkbd libps2" # Keyboard
+MEDIA=" loop cdrom sd_mod sr_mod usbcore usb_common usb-storage uas xhci_hcd ehci_hcd uhci_hcd ahci libata zram" # Core devices
+LEGACY="ata_piix pata_generic"      # old IDE
+NVME="nvme nvme_core"               # modern NVMe
+HID="hid-generic usbhid i8042 atkbd libps2"  # Keyboard
 
 for m in $FILESYSTEMS $MEDIA $LEGACY $NVME $HID; do
     modprobe $m 2>/dev/null
@@ -168,7 +168,7 @@ fi
 echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
 
 for attempt in 1 2 3; do
-    echo "  ${YELLOW}[SCAN]${NC} attempt $attempt/3"
+    echo -e "  ${YELLOW}[SCAN]${NC} attempt $attempt/3"
 
     # NVMe doesn't need scanning, just wait a little while
     [ $attempt -eq 1 ] && sleep 0.5
@@ -190,7 +190,7 @@ for attempt in 1 2 3; do
     do
         [ -e "$DEV" ] || continue
 
-        echo "  ${YELLOW}[SCAN]${NC} probing $DEV"
+        echo -e "  ${YELLOW}[SCAN]${NC} probing $DEV"
         mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
 
         # --------------------------------------------------
@@ -234,7 +234,7 @@ for attempt in 1 2 3; do
             echo -e "${YELLOW}[INFO]${NC} ISO partition detected on $DEV"
             
             for ISO in "$ISO_MNT"/*.iso; do
-                echo "  ${YELLOW}[INFO]${NC} testing ISO $(basename "$ISO")"
+                echo -e "  ${YELLOW}[INFO]${NC} testing ISO $(basename "$ISO")"
                 # Hack: The busybox losetup applet does not have the --show argument
                 LOOP="$(losetup -f "$ISO" && losetup -a | grep "$ISO" | sed 's/:.*//')" || continue
                 mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
@@ -380,12 +380,12 @@ if [ "$FOUND_DEV" != "ventoy_iso" ]; then
 fi
 
 if [ -x /mnt/newroot/lib/systemd/systemd ]; then
-    echo "[BOOT] starting systemd"
+    echo -e "${GREEN}[BOOT]${NC} starting systemd"
     exec switch_root /mnt/newroot /lib/systemd/systemd
 elif [ -x /mnt/newroot/sbin/init ]; then
-    echo "[BOOT] starting init"
+    echo -e "${GREEN}[BOOT]${NC} starting init"
     exec switch_root /mnt/newroot /sbin/init
 else
-    echo "[FATAL] no init found"
+    echo -e "${RED}[FATAL]${NC} no init found"
     emergency_shell
 fi

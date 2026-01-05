@@ -149,10 +149,9 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 CURRENT_SECTION="rootfs squashfs"
 
 clear
-echo -e "${YELLOW}======================================================================${NC}"
+
 echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
-echo -e "${YELLOW}======================================================================${NC}"
 
 EXCLUDES="
 /boot/*
@@ -169,7 +168,8 @@ EXCLUDES="
 /var/log/*
 /var/cache/*
 /var/tmp/*
-/home/*
+/home/*/.??*
+/home/*/*
 /usr/src/*
 "
 
@@ -272,6 +272,7 @@ mkdir -p \
   "$INITRAMFS/mnt/iso" \
   "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
+  "$INITRAMFS/mnt/ram" \
   "$INITRAMFS/mnt/ro_root" \
   "$INITRAMFS/lib/modules/$FULLVER"
   
@@ -413,22 +414,22 @@ terminal_output gfxterm
 background_image /boot/grub/theme/background.png
 
 menuentry "${ISO_NAME%-live} ${VERSION} live" {
-    linux /boot/vmlinuz quiet loglevel=3
+    linux /boot/vmlinuz quiet loglevel=3 zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Language & Live User Config)" {
-    linux /boot/vmlinuz quiet neoconfig=1
+    linux /boot/vmlinuz quiet neoconfig=1 zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Failsafe graphics)" {
-    linux /boot/vmlinuz quiet nomodeset vga=normal
+    linux /boot/vmlinuz quiet nomodeset vga=normal zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (DEBUG)" {
-    linux /boot/vmlinuz debug=1 loglevel=7
+    linux /boot/vmlinuz debug=1 loglevel=7 zram=1
     initrd /boot/initramfs.img
 }
 

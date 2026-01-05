@@ -26,10 +26,8 @@ emergency_shell() {
     exec sh
 }
 
-echo -e "${YELLOW}======================================================================${NC}"
 echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
-echo -e "${YELLOW}======================================================================${NC}"
 
 # Checking if rootfs.sha256 exists
 if [ ! -f /rootfs.sha256 ]; then
@@ -54,15 +52,15 @@ echo -e "${GREEN}[OK]${NC} basic mounts ready"
 # --------------------------------------------------
 # 2. Create loop devices
 # --------------------------------------------------
-for i in 0 1 2 3 4 5 6 7; do
+for i in $(seq 0 15); do 
     [ -b /dev/loop$i ] || mknod /dev/loop$i b 7 $i
 done
 
 # --------------------------------------------------
 # 3. Load modules
 # --------------------------------------------------
-FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3"
-MEDIA=" loop cdrom sd_mod sr_mod usbcore usb_common usb-storage uas xhci_hcd ehci_hcd uhci_hcd ahci libata zram" # Core devices
+FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3 ext2"
+MEDIA="loop cdrom sd_mod sr_mod usbcore usb_common usb-storage uas xhci_hcd ehci_hcd uhci_hcd ahci libata zram" # Core devices
 LEGACY="ata_piix pata_generic"      # old IDE
 NVME="nvme nvme_core"               # modern NVMe
 HID="hid-generic usbhid i8042 atkbd libps2"  # Keyboard
@@ -75,82 +73,63 @@ sleep 0.5
 mdev -s
 
 # --------------------------------------------------
-# 4. Initramfs debug
+# 4. Initramfs debug (console, loop & modules)
 # --------------------------------------------------
-
-# Boot on initramfs for debugging
 [ "$initrd_debug" = "1" ] && emergency_shell
 
 # --------------------------------------------------
-# 5. Zram swap
+# 5. Zram overlay (optional, zram=1 on cmdline)
 # --------------------------------------------------
+OVERLAY_TYPE="tmpfs"  # Default
 
-TOTAL_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-
-# Do not enable zram on extremely small systems
-if [ "$TOTAL_KB" -lt 524288 ]; then
-  echo -e "${YELLOW}[INFO]${NC} RAM < 512MB, zram disabled"
-  :
-else
-  # Calculate size in KB
-  if [ "$TOTAL_KB" -lt 1048576 ]; then        # < 1 GB
-    ZRAM_KB=$((TOTAL_KB * 3 / 4))
-  elif [ "$TOTAL_KB" -lt 4194304 ]; then      # 1–4 GB
-    ZRAM_KB=$((TOTAL_KB / 2))
-  else                                        # > 4 GB
-    ZRAM_KB=2097152                            # cap 2 GB
-  fi
-
-  ZRAM_BYTES=$((ZRAM_KB * 1024))
-
-  echo -e "${YELLOW}[INFO]${NC} Configuring zram (${ZRAM_KB} KB)"
-
-  # Verify that the module is loaded
-  if ! lsmod | grep -q "^zram"; then
-    echo -e "${YELLOW}[INFO]${NC} zram module not loaded, skipping swap"
-  # Verify that the device exists in sysfs
-  elif [ ! -e /sys/block/zram0 ]; then
-    echo -e "${YELLOW}[INFO]${NC} zram device not present in sysfs"
-  else
-    # Secure node in /dev
-    if [ ! -b /dev/zram0 ]; then
-      if [ -e /sys/block/zram0/dev ]; then
-        read MAJOR MINOR < /sys/block/zram0/dev
-        mknod /dev/zram0 b "$MAJOR" "$MINOR" 2>/dev/null
-        chmod 660 /dev/zram0
-      fi
-    fi
-
-    if [ -b /dev/zram0 ]; then
-      # Choose algorithm if possible
-      if [ -e /sys/block/zram0/comp_algorithm ]; then
-        if grep -q "\[lz4\]" /sys/block/zram0/comp_algorithm 2>/dev/null; then
-          echo lz4 > /sys/block/zram0/comp_algorithm
-          ALGO="lz4"
-        elif grep -q "\[lzo\]" /sys/block/zram0/comp_algorithm 2>/dev/null; then
-          echo lzo > /sys/block/zram0/comp_algorithm
-          ALGO="lzo"
-        fi
-      fi
-
-      # Set size (IN BYTES)
-      if echo "$ZRAM_BYTES" > /sys/block/zram0/disksize 2>/dev/null; then
-        if mkswap /dev/zram0 >/dev/null 2>&1; then
-          if swapon -p 5 /dev/zram0 >/dev/null 2>&1; then
-            echo -e "${GREEN}[OK]${NC} zram swap enabled (${ZRAM_KB} KB, ${ALGO:-default})"
-          else
-            echo -e "${YELLOW}[WARN]${NC} swapon failed on zram"
-          fi
-        else
-          echo -e "${YELLOW}[WARN]${NC} mkswap failed on zram"
-        fi
-      else
-        echo -e "${YELLOW}[WARN]${NC} could not set zram disksize"
-      fi
+if grep -q "zram=1" /proc/cmdline; then
+  TOTAL_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+  
+  if [ "$TOTAL_KB" -ge 262144 ]; then  # >= 256MB
+    # Para 4GB RAM: 1365MB zram → ~400MB compress
+    if [ "$TOTAL_KB" -lt 4194304 ]; then
+      ZRAM_KB=$((TOTAL_KB * 1 / 3))   # 33% for <4GB
     else
-      echo -e "${YELLOW}[WARN]${NC} /dev/zram0 not available"
+      ZRAM_KB=$((TOTAL_KB / 2))       # 50% for >4GB
+    fi
+    [ "$ZRAM_KB" -gt 2097152 ] && ZRAM_KB=2097152
+    
+    echo -e "${YELLOW}[INFO]${NC} Configuring zram overlay (${ZRAM_KB} KB)"
+    
+    if modprobe zram num_devices=1 2>/dev/null; then
+      # Create node if it doesn't exist
+      if [ ! -b /dev/zram0 ]; then
+        read MAJOR MINOR < /sys/block/zram0/dev
+        mknod /dev/zram0 b "$MAJOR" "$MINOR"
+        chmod 600 /dev/zram0
+      fi
+      
+      # Configure compression
+      [ -e /sys/block/zram0/comp_algorithm ] && \
+        grep -q "\[lz4\]" /sys/block/zram0/comp_algorithm && echo lz4 > /sys/block/zram0/comp_algorithm
+      
+      # Format and mount
+      if echo "$((ZRAM_KB * 1024))" > /sys/block/zram0/disksize && \
+         mkfs.ext2 -q /dev/zram0 && \
+         mkdir -p /mnt/zram-overlay && \
+         mount /dev/zram0 /mnt/zram-overlay; then
+        
+        mkdir -p /mnt/zram-overlay/upper /mnt/zram-overlay/work
+        OVERLAY_TYPE="zram"
+        echo -e "${GREEN}[OK]${NC} Zram overlay ready"
+      fi
     fi
   fi
+fi
+
+# Fallback if zram failed or is not active
+if [ "$OVERLAY_TYPE" != "zram" ]; then
+  echo -e "${YELLOW}[INFO]${NC} Using tmpfs fallback"
+  mount -t tmpfs tmpfs /mnt/ram || {
+    echo -e "${RED}[ERROR]${NC} tmpfs mount failed"
+    emergency_shell
+}
+  mkdir -p /mnt/ram/upper /mnt/ram/work
 fi
 
 # --------------------------------------------------
@@ -168,10 +147,10 @@ fi
 echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
 
 for attempt in 1 2 3; do
-    echo -e "  ${YELLOW}[SCAN]${NC} attempt $attempt/3"
+    echo -e "  ${YELLOW}[SCAN]${NC} attempt: $attempt/3"
 
     # NVMe doesn't need scanning, just wait a little while
-    [ $attempt -eq 1 ] && sleep 0.5
+    [ $attempt -eq 1 ] && sleep 1.5
     # SCSI scan (SATA, USB)
     for host in /sys/class/scsi_host/host*; do
         echo "- - -" > "$host/scan" 2>/dev/null || true
@@ -190,7 +169,7 @@ for attempt in 1 2 3; do
     do
         [ -e "$DEV" ] || continue
 
-        echo -e "  ${YELLOW}[SCAN]${NC} probing $DEV"
+        echo -e "  ${YELLOW}[SCAN]${NC} device: $DEV"
         mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
 
         # --------------------------------------------------
@@ -234,7 +213,7 @@ for attempt in 1 2 3; do
             echo -e "${YELLOW}[INFO]${NC} ISO partition detected on $DEV"
             
             for ISO in "$ISO_MNT"/*.iso; do
-                echo -e "  ${YELLOW}[INFO]${NC} testing ISO $(basename "$ISO")"
+                echo -e "  ${YELLOW}[TESTING]${NC} ISO $(basename "$ISO")"
                 # Hack: The busybox losetup applet does not have the --show argument
                 LOOP="$(losetup -f "$ISO" && losetup -a | grep "$ISO" | sed 's/:.*//')" || continue
                 mount -o ro "$LOOP" "$ISO_TEST" 2>/dev/null || {
@@ -309,41 +288,45 @@ fi
 
 echo -e "${GREEN}[OK]${NC} squashfs mounted"
 
+# --------------------------------------------------
+# 10. Initramfs debug  (zram, scan ventoy/devices & squashfs)
+# --------------------------------------------------
+[ "$initrd_debug" = "2" ] && emergency_shell
+
 # ---------------------------------------------
-# 10. OverlayFS
+# 11. Mount overlay (zram or tmpfs)
 # ---------------------------------------------
-mkdir -p /mnt/ram
-mkdir -p /mnt/newroot
 
-mount -t tmpfs tmpfs /mnt/ram || {
-    echo -e "${RED}[ERROR]${NC} tmpfs mount failed"
-    emergency_shell
-}
-
-mkdir -p /mnt/ram/upper
-mkdir -p /mnt/ram/work
-
-mount -t overlay overlay \
-    -o lowerdir=/mnt/ro_root,upperdir=/mnt/ram/upper,workdir=/mnt/ram/work \
+if [ "$OVERLAY_TYPE" = "zram" ]; then
+  mount -t overlay overlay \
+    -o lowerdir=/mnt/ro_root,upperdir=/mnt/zram-overlay/upper,workdir=/mnt/zram-overlay/work \
     /mnt/newroot || {
-        echo -e "${RED}[ERROR]${NC} overlay mount failed"
+        echo -e "${RED}[ERROR]${NC} overlay on (${OVERLAY_TYPE}) mount failed"
         emergency_shell
     }
+else
+  mount -t overlay overlay \
+    -o lowerdir=/mnt/ro_root,upperdir=/mnt/ram/upper,workdir=/mnt/ram/work \
+    /mnt/newroot || {
+        echo -e "${RED}[ERROR]${NC} overlay on (${OVERLAY_TYPE}) mount failed"
+        emergency_shell
+    }
+fi
 
-echo -e "${GREEN}[OK]${NC} overlay mounted"
+echo -e "${GREEN}[OK]${NC} Overlay mounted on (${OVERLAY_TYPE})"
 
 # --------------------------------------------------
-# 11. Live Configuration (opcional)
+# 12. Live Configuration (opcional)
 # --------------------------------------------------
 if echo "$CMDLINE" | grep -q "neoconfig=1"; then
-    echo -e "${YELLOW}[INFO]${NC} Ejecutando configuración Live..."
+    echo -e "${YELLOW}[INFO]${NC} Running Live Setup..."
     if [ -x /live-config.sh ]; then
         /live-config.sh
     fi
 fi
 
 # --------------------------------------------------
-# 12. New root virtual filesystems
+# 13. New root virtual filesystems
 # --------------------------------------------------
 mkdir -p /mnt/newroot/proc
 mkdir -p /mnt/newroot/sys
@@ -357,8 +340,18 @@ mkdir -p /mnt/newroot/dev/pts
 mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts
 mount -t tmpfs tmpfs /mnt/newroot/run
 
+# Make iso and boot available after switch_root
+mkdir -p /mnt/newroot/mnt/iso
+mkdir -p /mnt/newroot/boot
+
+mount --bind /mnt/iso /mnt/newroot/mnt/iso
+
+if [ -d /mnt/iso/boot ]; then
+    mount --bind /mnt/iso/boot /mnt/newroot/boot
+fi
+
 # --------------------------------------------------
-# 13. machine-id (systemd) & minimal fstab
+# 14. machine-id (systemd) & minimal fstab
 # --------------------------------------------------
 if [ -x /mnt/newroot/lib/systemd/systemd ]; then
     mkdir -p /mnt/newroot/etc
@@ -373,7 +366,13 @@ tmpfs /run   tmpfs defaults  0 0
 EOF
 
 # --------------------------------------------------
-# 14. Switch root (universal)
+# 15. Initramfs debug  (overlay, new_root & minimal config)
+# --------------------------------------------------
+[ "$initrd_debug" = "3" ] && emergency_shell
+
+
+# --------------------------------------------------
+# 16. Switch root (universal)
 # --------------------------------------------------
 if [ "$FOUND_DEV" != "ventoy_iso" ]; then
     umount "$ISO_TEST" 2>/dev/null || true

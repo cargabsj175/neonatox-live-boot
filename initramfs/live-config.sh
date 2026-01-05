@@ -1,7 +1,7 @@
 #!/bin/busybox sh
 # /live-config.sh
 # Neonatox Live Boot Configuration
-# Language, keyboard, time zone, and Live user
+# Language, keyboard, time zone and live user
 
 # --------------------------------------------------
 # Colors (TTY safe)
@@ -47,12 +47,13 @@ show_menu() {
 
     echo -e "${GREEN}1.${NC} Español - Venezuela [Enter]" > /dev/tty1
     echo -e "${GREEN}2.${NC} English - USA" > /dev/tty1
-    echo -e "${GREEN}3.${NC} Português - Brasil" > /dev/tty1
-    echo -e "${GREEN}4.${NC} Português - Portugal" > /dev/tty1
-    echo -e "${GREEN}5.${NC} Français - France" > /dev/tty1
-    echo -e "${GREEN}6.${NC} Русский - Россия" > /dev/tty1
+    echo -e "${GREEN}3.${NC} Português - Brasil - TZ Sao Paulo" > /dev/tty1
+    echo -e "${GREEN}4.${NC} Português - Brasil - TZ Manaus" > /dev/tty1
+    echo -e "${GREEN}5.${NC} Português - Portugal" > /dev/tty1
+    echo -e "${GREEN}6.${NC} Français - France" > /dev/tty1
+    echo -e "${GREEN}7.${NC} Русский - Россия" > /dev/tty1
     echo "" > /dev/tty1
-    echo -e "    ${YELLOW}Select an option (timeout 60s):${NC} [1]" > /dev/tty1
+    echo -e "    ${YELLOW}Seleccione una opción (timeout 60s):${NC} [1]" > /dev/tty1
 
     if read -t 60 choice < /dev/tty1; then
         case "$choice" in
@@ -67,16 +68,21 @@ show_menu() {
                 KEYMAP="br"
                 ;;
             4)
+                LANG="pt_BR.UTF-8"
+                TZ="America/Manaus"
+                KEYMAP="br"
+                ;;
+            5)
                 LANG="pt_PT.UTF-8"
                 TZ="Europe/Lisbon"
                 KEYMAP="pt"
                 ;;
-            5)
+            6)
                 LANG="fr_FR.UTF-8"
                 TZ="Europe/Paris"
                 KEYMAP="fr"
                 ;;
-            6)
+            7)
                 LANG="ru_RU.UTF-8"
                 TZ="Europe/Moscow"
                 KEYMAP="ru"
@@ -98,7 +104,7 @@ show_menu() {
 # Apply configuration to new root
 # --------------------------------------------------
 apply_config() {
-    echo -e "${BLUE}[Live]${NC} Applying settings..."
+    echo -e "${BLUE}[Live]${NC} Applying configuration..."
 
     mkdir -p "$NEWROOT/etc"
 
@@ -189,40 +195,100 @@ EOF
        add_user_to_group "$g"
     done
 
+# --------------------------------------------------
+# Passwordless sudo/doas
+# --------------------------------------------------
 
-    # --------------------------------------------------
-    # Passwordless sudo
-    # --------------------------------------------------
+# sudo
+[ -x "$NEWROOT/usr/bin/sudo" ] && {
     mkdir -p "$NEWROOT/etc/sudoers.d"
-    cat > "$NEWROOT/etc/sudoers.d/99-live" <<EOF
-$LIVE_USER ALL=(ALL) NOPASSWD: ALL
-EOF
-    chmod 440 "$NEWROOT/etc/sudoers.d/99-live" 2>/dev/null || true
+    echo "$LIVE_USER ALL=(ALL) NOPASSWD: ALL" > "$NEWROOT/etc/sudoers.d/99-live"
+    chmod 440 "$NEWROOT/etc/sudoers.d/99-live" 2>/dev/null
+}
 
-    # --------------------------------------------------
-    # Autologin tty1
-    # --------------------------------------------------
+# doas
+[ -x "$NEWROOT/usr/bin/doas" ] && {
+    mkdir -p "$NEWROOT/etc/doas.d"
+    echo "permit nopass $LIVE_USER as root" > "$NEWROOT/etc/doas.d/99-live.conf"
+    chmod 0400 "$NEWROOT/etc/doas.d/99-live.conf" 2>/dev/null
+}
+
+
+# --------------------------------------------------
+# Autologin tty1 and disable screen managers
+# --------------------------------------------------
+
+# Function to disable screen managers
+disable_display_managers() {
+    echo "Disabling screen managers (if any are active)..."
+    
+    # Find and remove links to screen manager services
+    for manager in gdm lightdm lxdm sddm xdm; do
+        # Search in all common runlevel directories
+        for dir in "$NEWROOT/etc/rc.d" \
+                   "$NEWROOT/etc/rc0.d" "$NEWROOT/etc/rc1.d" "$NEWROOT/etc/rc2.d" \
+                   "$NEWROOT/etc/rc3.d" "$NEWROOT/etc/rc4.d" "$NEWROOT/etc/rc5.d" \
+                   "$NEWROOT/etc/rc6.d" "$NEWROOT/etc/rcS.d" \
+                   "$NEWROOT/etc/runlevels"; do
+            
+            if [ -d "$dir" ]; then
+                find "$dir" -name "*$manager*" -type l -delete 2>/dev/null
+            fi
+        done
+    done
+}
+
+# Configure autologin according to the system
+if [ -x "$NEWROOT/bin/systemctl" ] || [ -d "$NEWROOT/usr/lib/systemd" ]; then
+    # Systemd
     mkdir -p "$NEWROOT/etc/systemd/system/getty@tty1.service.d"
     cat > "$NEWROOT/etc/systemd/system/getty@tty1.service.d/override.conf" <<EOF
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin $LIVE_USER --noclear --keep-baud %I \$TERM
 EOF
+    echo "Autologin configured for systemd"
+
+elif [ -f "$NEWROOT/etc/inittab" ]; then
+    # SysVinit/OpenRC
+    disable_display_managers
+    
+    # Backup and modify inittab
+    cp -f "$NEWROOT/etc/inittab" "$NEWROOT/etc/inittab.bak" 2>/dev/null
+    sed -i '/^tty1::/d' "$NEWROOT/etc/inittab"
+    echo "tty1::respawn:/bin/login -f $LIVE_USER" \
+        >> "$NEWROOT/etc/inittab"
+    echo "Autologin configured in inittab and managers disabled"
+fi
 
     # --------------------------------------------------
     # User startup files
     # --------------------------------------------------
-    cp -a "$NEWROOT/etc/skel/." "$NEWROOT/home/$LIVE_USER/"
+    
+    # Copiying skel if exists
+    cp -a "$NEWROOT/etc/skel/." "$NEWROOT/home/$LIVE_USER/" || true
 
     cat > "$NEWROOT/home/$LIVE_USER/.xinitrc" <<'EOF'
 #!/bin/sh
+
+# Load bashrc & profile if exists
+[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+[ -f "$HOME/.profile" ] && . "$HOME/.profile"
+
 exec startxfce4
 EOF
     chmod 755 "$NEWROOT/home/$LIVE_USER/.xinitrc"
+    
+        cat > "$NEWROOT/home/$LIVE_USER/.profile" <<EOF
+export LANG=$LANG
+export LC_ALL=$LANG
+EOF
+    chmod 755 "$NEWROOT/home/$LIVE_USER/.profile"
 
     cat > "$NEWROOT/home/$LIVE_USER/.bash_profile" <<'EOF'
-# Load bashrc if exists
+# Load bashrc & profile if exists
 [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+[ -f "$HOME/.profile" ] && . "$HOME/.profile"
 
     exec startx
 EOF
@@ -245,7 +311,7 @@ EOF
     echo -e "${GREEN}[Live] Configuration applied successfully:${NC}"
     echo -e "    ${YELLOW}User:${NC} $LIVE_USER"
     echo -e "    ${YELLOW}Language:${NC} $LANG"
-    echo -e "    ${YELLOW}Time zone:${NC} $TZ"
+    echo -e "    ${YELLOW}Timezone:${NC} $TZ"
     echo -e "    ${YELLOW}Keyboard:${NC} $KEYMAP"
 }
 

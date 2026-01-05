@@ -7,20 +7,21 @@
 <body>
 
 <header>
-    <h1>Boot Modes - Neonatox Live Boot</h1>
-    <p>Official boot options and kernel flags for the Neonatox Live system</p>
+  <h1>Boot Modes - Neonatox Live Boot</h1>
+  <p>Official boot options and kernel flags for the Neonatox Live system</p>
 </header>
 
 <main>
 
 <h2>Overview</h2>
 <p>
-Neonatox Live provides multiple boot modes designed for normal usage, live system
-configuration, hardware compatibility, and low-level debugging.
+Neonatox Live Boot uses a fully custom <strong>initramfs</strong> designed for
+robust hardware detection, optional RAM-based overlays, Ventoy compatibility,
+and controlled debugging.
 </p>
+
 <p>
-All modes are selected from the GRUB boot menu and are implemented early in the
-boot process, primarily inside the <strong>initramfs</strong>.
+All boot flags are parsed and acted upon <strong>before switch_root</strong>.
 </p>
 
 <hr>
@@ -31,13 +32,12 @@ boot process, primarily inside the <strong>initramfs</strong>.
 <pre>
 linux /boot/vmlinuz quiet loglevel=3
 </pre>
-<p>
-Standard live boot mode intended for everyday use.
-</p>
+
 <ul>
-<li>Minimal kernel output</li>
 <li>Fast boot</li>
+<li>tmpfs overlay (RAM)</li>
 <li>No interactive configuration</li>
+<li>No integrity re-check</li>
 </ul>
 
 <hr>
@@ -46,20 +46,13 @@ Standard live boot mode intended for everyday use.
 <pre>
 linux /boot/vmlinuz quiet <span class="flag">neoconfig=1</span>
 </pre>
-<p>
-Enables the interactive live configuration system during early boot.
-</p>
+
 <ul>
 <li>Language selection</li>
 <li>Keyboard layout</li>
 <li>Timezone</li>
-<li>Live user configuration</li>
+<li>Live user setup</li>
 </ul>
-
-<div class="note">
-<strong>Note:</strong> This mode explicitly triggers the live configuration logic
-and does not affect other boot modes.
-</div>
 
 <hr>
 
@@ -67,59 +60,109 @@ and does not affect other boot modes.
 <pre>
 linux /boot/vmlinuz quiet nomodeset vga=normal
 </pre>
-<p>
-Fallback graphics mode for systems with problematic or unsupported GPUs.
-</p>
+
 <ul>
-<li>Disables kernel mode setting (KMS)</li>
-<li>Improves compatibility with legacy hardware</li>
-<li>Recommended for virtual machines and older systems</li>
+<li>Disables KMS</li>
+<li>Recommended for legacy GPUs and virtual machines</li>
 </ul>
 
 <hr>
 
-<h3>4. Live (DEBUG)</h3>
+<h3>4. Live (Kernel DEBUG)</h3>
 <pre>
 linux /boot/vmlinuz <span class="flag">debug=1</span> loglevel=7
 </pre>
-<p>
-High-verbosity kernel debug mode.
-</p>
+
 <ul>
-<li>Maximum kernel log output</li>
-<li>Useful for driver, mount, and hardware debugging</li>
-<li>May significantly slow down boot</li>
+<li>Maximum kernel verbosity</li>
+<li>Driver and hardware diagnostics</li>
+<li>Does not affect initramfs logic</li>
 </ul>
 
 <hr>
 
-<h3>5. Live (Initramfs debug)</h3>
-<pre>
-linux /boot/vmlinuz <span class="flag">initrd_debug=1</span>
-</pre>
+<h3>5. Live (Initramfs Debug Levels)</h3>
+
 <p>
-Debug mode for the initramfs stage.
+Neonatox provides <strong>three deterministic initramfs debug breakpoints</strong>.
+Each level stops the boot process at a precise stage.
 </p>
+
+<pre>
+linux /boot/vmlinuz <span class="flag">initrd_debug=1|2|3</span>
+</pre>
+
+<h4>initrd_debug=1 – Early initramfs</h4>
 <ul>
-<li>Stops early boot process</li>
-<li>Drops into an initramfs shell</li>
-<li>Allows manual inspection of devices, mounts, and scripts</li>
+<li>Console and virtual filesystems mounted</li>
+<li>Kernel modules loaded</li>
+<li>Before ZRAM and device scan</li>
+</ul>
+
+<h4>initrd_debug=2 – Storage & integrity stage</h4>
+<ul>
+<li>ZRAM overlay configured (if enabled)</li>
+<li>Ventoy environment detected</li>
+<li>Devices scanned</li>
+<li>rootfs.squashfs located and verified</li>
+<li>squashfs mounted</li>
+</ul>
+
+<h4>initrd_debug=3 – Pre-switch_root</h4>
+<ul>
+<li>Overlay filesystem mounted</li>
+<li>newroot prepared</li>
+<li>Live configuration executed (if enabled)</li>
+<li>System ready to switch_root</li>
 </ul>
 
 <div class="note">
-<strong>Important:</strong> This mode is intended for developers and advanced users.
-No automatic boot into the live system will occur unless manually continued.
+<strong>Note:</strong> All debug levels drop into an emergency shell.
+Boot will not continue automatically.
 </div>
+
+<hr>
+
+<h2>Optional Performance & Safety Flags</h2>
+
+<h3>ZRAM Overlay</h3>
+<pre>
+linux /boot/vmlinuz <span class="flag">zram=1</span>
+</pre>
+
+<ul>
+<li>Uses compressed RAM as overlay upper layer</li>
+<li>Automatic sizing based on total memory</li>
+<li>lz4 compression when available</li>
+<li>Falls back to tmpfs if unavailable</li>
+</ul>
+
+<hr>
+
+<h3>RootFS Integrity Verification</h3>
+<pre>
+linux /boot/vmlinuz <span class="flag">checkhash=1</span>
+</pre>
+
+<ul>
+<li>Full SHA256 verification of rootfs.squashfs</li>
+<li>Applies to both physical media and Ventoy ISOs</li>
+<li>Slower but ensures full integrity</li>
+</ul>
 
 <hr>
 
 <h2>Supported Kernel Flags</h2>
 <ul>
-<li><span class="flag">neoconfig=1</span> – Enables interactive live configuration</li>
-<li><span class="flag">initrd_debug=1</span> – Opens an early initramfs debug shell</li>
-<li><span class="flag">debug=1</span> – Enables kernel debugging</li>
-<li><span class="flag">loglevel=7</span> – Maximum kernel log verbosity</li>
-<li><span class="flag">nomodeset</span> – Disables kernel mode setting</li>
+<li><span class="flag">neoconfig=1</span> – Interactive live setup</li>
+<li><span class="flag">zram=1</span> – Enable ZRAM overlay</li>
+<li><span class="flag">checkhash=1</span> – Full rootfs hash verification</li>
+<li><span class="flag">initrd_debug=1</span> – Early initramfs shell</li>
+<li><span class="flag">initrd_debug=2</span> – Storage & integrity shell</li>
+<li><span class="flag">initrd_debug=3</span> – Pre-switch_root shell</li>
+<li><span class="flag">debug=1</span> – Kernel debug</li>
+<li><span class="flag">loglevel=7</span> – Maximum kernel verbosity</li>
+<li><span class="flag">nomodeset</span> – Disable KMS</li>
 </ul>
 
 <hr>
@@ -133,6 +176,12 @@ GRUB
 Linux Kernel
         ↓
 initramfs
+        ↓
+(optional) ZRAM overlay (zram=1)
+        ↓
+(optional) Ventoy ISO detection
+        ↓
+(optional) rootfs verification (checkhash=1)
         ↓
 (optional) live-config (neoconfig=1)
         ↓

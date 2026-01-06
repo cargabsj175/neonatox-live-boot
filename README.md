@@ -133,7 +133,7 @@ Dependencies
 Compatibility of Tested Systems
 ------------
 
-The following table documents the distributions and operating systems that have been successfully tested using the Neonatox live boot system. This information is updated regularly to reflect the current state of compatibility across different media.s de arranque.
+The following table documents the distributions and operating systems that have been successfully tested with the Neonatox live boot system. This information is updated periodically to reflect the current state of compatibility between different boot media.
 
 | Distro    | Version | Kernel      | DVD/USB | Ventoy USB | Observations                     |
 |-----------|---------|-------------|---------|------------|-----------------------------------|

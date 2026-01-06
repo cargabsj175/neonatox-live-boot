@@ -27,7 +27,7 @@ emergency_shell() {
     exec sh
 }
 
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.7 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 # Checking if rootfs.sha256 exists

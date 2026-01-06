@@ -139,6 +139,7 @@ The following table documents the distributions and operating systems that have 
 |-----------|---------|-------------|---------|------------|-----------------------------------|
 | Alpine    | 3.22.2  | 6.12.61.0-lts | ✅ OK   | ✅ OK      | Requires full PCI USB modules |
 | NeonatoX  | 2025    | 6.18.2      | ✅ OK   | ✅ OK      | Base development system        |
+| ubuntu  | 24.04    | 6.8.0-90-generic | ✅ OK   | ✅ OK      |         |
 
 > **Info**: ✅ OK = Fully compatible | ⚠️ Slow = Requires adjustments | ❌ Fails = Not compatible
 

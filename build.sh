@@ -6,6 +6,12 @@ set -e
 # BIOS + UEFI + GRUB
 # ==========================================================
 
+# Check if running as root
+if [[ "$(id -u)" -ne 0 ]]; then
+    echo "Error: This script must be run as root" >&2
+    exit 1
+fi
+
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # ---------------------------------------------
@@ -102,7 +108,6 @@ unxz
 gunzip
 unzstd
 "
-
 for bin in $REQUIRED_BINS; do
     if ! command -v "$bin" >/dev/null 2>&1; then
         echo -e "${RED}[ERROR]${NC} missing required binary: $bin"
@@ -149,8 +154,7 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 CURRENT_SECTION="rootfs squashfs"
 
 clear
-
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.6 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.7 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 EXCLUDES="
@@ -168,11 +172,9 @@ EXCLUDES="
 /var/log/*
 /var/cache/*
 /var/tmp/*
-/home/*/.??*
-/home/*/*
+/home/*
 /usr/src/*
 "
-
 echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
 mksquashfs / "$SQUASHFS"  -e $(echo $EXCLUDES) -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
@@ -434,7 +436,7 @@ menuentry "${ISO_NAME%-live} ${VERSION} live (DEBUG)" {
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Initramfs debug)" {
-    linux /boot/vmlinuz initrd_debug=1
+    linux /boot/vmlinuz quiet initrd_debug=1 zram=1
     initrd /boot/initramfs.img
 }
 

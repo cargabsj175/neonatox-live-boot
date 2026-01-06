@@ -130,6 +130,20 @@ Dependencies
 
 * * *
 
+Compatibility of Tested Systems
+------------
+
+The following table documents the distributions and operating systems that have been successfully tested using the Neonatox live boot system. This information is updated regularly to reflect the current state of compatibility across different media.s de arranque.
+
+| Distro    | Version | Kernel      | DVD/USB | Ventoy USB | Observations                     |
+|-----------|---------|-------------|---------|------------|-----------------------------------|
+| Alpine    | 3.22.2  | 6.12.61.0-lts | ✅ OK   | ✅ OK      | Requires full PCI USB modules |
+| NeonatoX  | 2025    | 6.18.2      | ✅ OK   | ✅ OK      | Base development system        |
+
+> **Info**: ✅ OK = Fully compatible | ⚠️ Slow = Requires adjustments | ❌ Fails = Not compatible
+
+* * *
+
 Philosophy
 ----------
 

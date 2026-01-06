@@ -17,6 +17,7 @@ ISO_MNT="/mnt/iso"
 ISO_TEST="/mnt/iso_test"
 FOUND_DEV=""
 VENTOY_MODE=0
+FOUND_MATCH=0
 
 # --------------------------------------------------
 # Core functions
@@ -60,7 +61,11 @@ done
 # 3. Load modules
 # --------------------------------------------------
 FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3 ext2"
-MEDIA="loop cdrom sd_mod sr_mod usbcore usb_common usb-storage uas xhci_hcd ehci_hcd uhci_hcd ahci libata zram" # Core devices
+MEDIA="loop scsi_mod sd_mod sr_mod cdrom \
+       usbcore usb_common usb-storage uas \
+       xhci_hcd ehci_hcd uhci_hcd \
+       xhci_pci ehci_pci ohci_pci \
+       ahci libata zram" # Core devices
 LEGACY="ata_piix pata_generic"      # old IDE
 NVME="nvme nvme_core"               # modern NVMe
 HID="hid-generic usbhid i8042 atkbd libps2"  # Keyboard
@@ -69,7 +74,7 @@ for m in $FILESYSTEMS $MEDIA $LEGACY $NVME $HID; do
     modprobe $m 2>/dev/null
 done
 
-sleep 0.5
+sleep 1
 mdev -s
 
 # --------------------------------------------------
@@ -156,7 +161,7 @@ for attempt in 1 2 3; do
         echo "- - -" > "$host/scan" 2>/dev/null || true
     done
 
-    sleep 0.5
+    sleep 1
     mdev -s
 
     # Search in ORDER: CD/DVD first, then partitions
@@ -180,7 +185,8 @@ for attempt in 1 2 3; do
             # [HASH] verify rootfs.sha256 exists
             if [ ! -f "$ISO_MNT/rootfs.sha256" ]; then
                 echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing in ISO"
-                emergency_shell
+                umount "$ISO_MNT" 2>/dev/null
+                continue
             fi
 
             if echo "$CMDLINE" | grep -q "checkhash=1"; then
@@ -188,15 +194,21 @@ for attempt in 1 2 3; do
                 CALC="$(sha256sum "$ISO_MNT/rootfs.squashfs" | awk '{print $1}')"
                 if [ "$CALC" = "$ROOTFS_HASH" ]; then
                     echo -e "${GREEN}[OK]${NC} rootfs.squashfs hash verified (ISO)"
+                    FOUND_MATCH=1
                 else
-                    emergency_shell
+                    echo -e "${YELLOW}[WARN]${NC} rootfs hash mismatch (ISO)"
+                    umount "$ISO_MNT" 2>/dev/null
+                    continue
                 fi
             else
                 echo -e "${YELLOW}[INFO]${NC} fast hash check (file compare)"
                 if [ "$(cat "$ISO_MNT/rootfs.sha256")" = "$ROOTFS_HASH" ]; then
                     echo -e "${GREEN}[OK]${NC} rootfs.sha256 verified (ISO)"
+                    FOUND_MATCH=1
                 else
-                    emergency_shell
+                    echo -e "${YELLOW}[WARN]${NC} rootfs hash mismatch (ISO)"
+                    umount "$ISO_MNT" 2>/dev/null
+                    continue
                 fi
             fi
 
@@ -225,42 +237,53 @@ for attempt in 1 2 3; do
                     
                     if [ ! -f "$ISO_TEST/rootfs.sha256" ]; then
                         echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing in ISO"
-                        emergency_shell
+                        umount "$ISO_TEST" 2>/dev/null
+                        losetup -d "$LOOP" 2>/dev/null
+                        continue
                     fi
 
-                if echo "$CMDLINE" | grep -q "checkhash=1"; then
-                    echo -e "${YELLOW}[INFO]${NC} full rootfs hash verification"
-                    CALC="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
-                    if [ "$CALC" = "$ROOTFS_HASH" ]; then
-                        echo -e "${GREEN}[OK]${NC} rootfs.squashfs hash verified (Ventoy)"
+                    if echo "$CMDLINE" | grep -q "checkhash=1"; then
+                        echo -e "${YELLOW}[INFO]${NC} full rootfs hash verification"
+                        CALC="$(sha256sum "$ISO_TEST/rootfs.squashfs" | awk '{print $1}')"
+                        if [ "$CALC" = "$ROOTFS_HASH" ]; then
+                            echo -e "${GREEN}[OK]${NC} rootfs.squashfs hash verified (Ventoy)"
+                            FOUND_MATCH=1
+                        else
+                            echo -e "${YELLOW}[WARN]${NC} rootfs hash mismatch (Ventoy)"
+                            umount "$ISO_TEST" 2>/dev/null
+                            losetup -d "$LOOP" 2>/dev/null
+                            continue
+                        fi
                     else
-                        emergency_shell
+                        echo -e "${YELLOW}[INFO]${NC} fast hash check (file compare)"
+                        if [ "$(cat "$ISO_TEST/rootfs.sha256")" = "$ROOTFS_HASH" ]; then
+                            echo -e "${GREEN}[OK]${NC} rootfs.sha256 verified (Ventoy)"
+                            FOUND_MATCH=1
+                        else
+                            echo -e "${YELLOW}[WARN]${NC} rootfs hash mismatch (Ventoy)"
+                            umount "$ISO_TEST" 2>/dev/null
+                            losetup -d "$LOOP" 2>/dev/null
+                            continue
+                        fi
                     fi
-                else
-                    echo -e "${YELLOW}[INFO]${NC} fast hash check (file compare)"
-                    if [ "$(cat "$ISO_TEST/rootfs.sha256")" = "$ROOTFS_HASH" ]; then
-                        echo -e "${GREEN}[OK]${NC} rootfs.sha256 verified (Ventoy)"
-                    else
-                        emergency_shell
-                    fi
-                fi
                     FOUND_DEV="ventoy_iso"
                     ISO_MNT="$ISO_TEST"
                     break 3
                 fi
-                    if [ "$FOUND_DEV" != "ventoy_iso" ]; then
-                        umount "$ISO_TEST" 2>/dev/null
-                        [ -n "$LOOP" ] && losetup -d "$LOOP" 2>/dev/null
-                    fi
+            if [ "$FOUND_DEV" != "ventoy_iso" ]; then
+                umount "$ISO_TEST" 2>/dev/null
+                [ -n "$LOOP" ] && losetup -d "$LOOP" 2>/dev/null
+            fi
             done
         fi
+
         # Unmount only if it is NOT the correct Ventoy ISO
         if [ "$FOUND_DEV" != "ventoy_iso" ]; then
             umount "$ISO_MNT" 2>/dev/null || umount -l "$ISO_MNT"
         fi
     done
 done
-        
+
 # --------------------------------------------------
 # 8. Fail if not found
 # --------------------------------------------------
@@ -344,10 +367,16 @@ mount -t tmpfs tmpfs /mnt/newroot/run
 mkdir -p /mnt/newroot/mnt/iso
 mkdir -p /mnt/newroot/boot
 
-mount --bind /mnt/iso /mnt/newroot/mnt/iso
-
-if [ -d /mnt/iso/boot ]; then
-    mount --bind /mnt/iso/boot /mnt/newroot/boot
+if [ "$VENTOY_MODE" = "1" ]; then
+    mount --bind /mnt/iso_test /mnt/newroot/mnt/iso
+    if [ -d /mnt/iso_test/boot ]; then
+        mount --bind /mnt/iso_test/boot /mnt/newroot/boot
+    fi
+else
+    mount --bind /mnt/iso /mnt/newroot/mnt/iso
+    if [ -d /mnt/iso/boot ]; then
+        mount --bind /mnt/iso/boot /mnt/newroot/boot
+    fi
 fi
 
 # --------------------------------------------------

@@ -134,6 +134,109 @@ These directories are injected by Ventoy and are present both in legacy and UEFI
 Ventoy boot modes.
 </p>
 
+<h2>USB Controller Detection: The Hidden Challenge</h2>
+
+<p>
+A critical discovery during development revealed that Ventoy compatibility depends
+heavily on proper USB controller detection in the initramfs. Early testing showed
+that while Neonatox ISOs worked in Ventoy, other distributions like Alpine Linux
+failed when using the same initramfs.</p>
+
+<h3>Root Cause: Missing PCI Interface Modules</h3>
+
+<p>
+The issue was traced to missing USB PCI interface modules in the initramfs module
+loading sequence. While standard host controller modules (<code>xhci_hcd</code>,
+<code>ehci_hcd</code>, etc.) were loaded, the essential PCI bridge modules were
+missing:</p>
+
+<ul>
+  <li><code>xhci_pci</code> - USB 3.x (xHCI) PCI interface</li>
+  <li><code>ehci_pci</code> - USB 2.0 (eHCI) PCI interface</li>
+  <li><code>ohci_pci</code> - USB 1.1 (OHCI) PCI interface</li>
+</ul>
+
+<p>
+Without these modules, the kernel cannot detect physical USB devices connected
+through PCI Express interfaces, which is common in most modern hardware.</p>
+
+<h3>Solution: Complete USB Module Loading</h3>
+
+<p>
+The initramfs now loads a comprehensive set of USB modules to ensure detection
+across all hardware types:</p>
+
+<pre>
+MEDIA="loop scsi_mod sd_mod sr_mod cdrom \
+       usbcore usb_common usb-storage uas \
+       xhci_hcd ehci_hcd uhci_hcd \
+       xhci_pci ehci_pci ohci_pci \
+       ahci libata zram"
+</pre>
+
+<p>
+This guarantees USB device enumeration regardless of the underlying hardware
+architecture.</p>
+
+<h2>Kernel Version Differences in Device Management</h2>
+
+<p>
+Testing across different kernel versions revealed another critical compatibility
+issue related to how device nodes are created.</p>
+
+<h3>Behavioral Change in Linux Kernel 6.15+</h3>
+
+<p>
+A significant behavioral change was introduced in Linux kernel version 6.15:</p>
+
+<ul>
+  <li><strong>Kernel ≥ 6.15</strong>: Automatically creates partition device nodes
+  (like <code>/dev/sdb1</code>) when the partition table is read, even without udev.</li>
+  <li><strong>Kernel ≤ 6.14</strong>: Only creates the disk device node (like <code>/dev/sdb</code>).
+  Partition nodes must be created manually or by udev/mdev.</li>
+</ul>
+
+<p>
+This explains why the same initramfs worked with newer kernels but failed with
+older ones like Alpine's 6.12 kernel.</p>
+
+<h3>Solution: Proactive Partition Node Creation</h3>
+
+<p>
+To ensure compatibility across all kernel versions, the initramfs now includes
+a function that proactively creates missing partition device nodes by reading
+partition information directly from <code>/sys/block/</code>:</p>
+
+<pre>
+create_partitions() {
+    local disk_base="$1"      # e.g., sda
+    local disk_dev="$2"       # e.g., /dev/sda
+    local part_prefix="$3"    # "" for sd/hd, "p" for mmcblk
+
+    i=1
+    while [ $i -le 16 ]; do
+        part_name="${disk_base}/${i}"
+        part_dev="${disk_dev}${part_prefix}${i}"
+
+        if [ -e "/sys/block/$part_name" ]; then
+            if [ ! -b "$part_dev" ]; then
+                if [ -f "/sys/block/$part_name/dev" ]; then
+                    read MAJ MIN &lt; "/sys/block/$part_name/dev"
+                    mknod "$part_dev" b "$MAJ" "$MIN" 2>/dev/null
+                fi
+            fi
+        else
+            break
+        fi
+        i=$((i + 1))
+    done
+}
+</pre>
+
+<p>
+This function ensures that partition nodes exist even on older kernels that
+don't create them automatically.</p>
+
 <h2>Critical Detail: BusyBox losetup Limitation</h2>
 
 <p>
@@ -199,18 +302,20 @@ Once this change was applied, Ventoy boot worked correctly and consistently.
 <h2>Why This Matters</h2>
 
 <p>
-This highlights an important lesson when designing initramfs-based systems:
+This highlights important lessons when designing initramfs-based systems:
 </p>
 
 <ul>
   <li>Tool behavior inside initramfs is not the same as a full system</li>
   <li>BusyBox applets have reduced feature sets</li>
   <li>Silent failures can lead to misleading conclusions</li>
+  <li>Hardware detection requires complete module loading (including PCI interfaces)</li>
+  <li>Kernel version differences can break assumptions about device node creation</li>
 </ul>
 
 <p>
-Ventoy itself was functioning exactly as designed.
-</p>
+Ventoy itself was functioning exactly as designed. The challenges were in our
+initramfs implementation and understanding of low-level hardware interaction.</p>
 
 <h2>Summary</h2>
 
@@ -218,13 +323,16 @@ Ventoy itself was functioning exactly as designed.
   <li>Ventoy support is fully initramfs-driven</li>
   <li>No Ventoy patches or plugins are required</li>
   <li>ISO selection is cryptographically verified</li>
-  <li>The final blocker was a BusyBox limitation, not Ventoy</li>
-  <li>The solution is portable, robust, and maintainable</li>
+  <li>USB detection requires both host controller and PCI interface modules</li>
+  <li>Older kernels need manual partition node creation</li>
+  <li>BusyBox limitations must be worked around explicitly</li>
+  <li>The solution is portable, robust, and maintainable across kernel versions</li>
 </ul>
 
 <p>
-This design preserves Neonatox’s educational philosophy while achieving
-real-world compatibility with modern multiboot tools.
+This design preserves Neonatox's educational philosophy while achieving
+real-world compatibility with modern multiboot tools across different hardware
+platforms and kernel versions.
 </p>
 
 </body>

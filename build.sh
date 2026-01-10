@@ -18,10 +18,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Default values (safe fallback)
 # ---------------------------------------------
 
-ISO_NAME="linux-live"
+ISO_NAME="nlb-linux-live"
 VERSION="1"
 ARCH="$(uname -m)"
-LABEL="LINUX_LIVE"
+LABEL="NLB_LINUX_LIVE"
 
 # ---------------------------------------------
 # Override only if /etc/os-release exists
@@ -52,8 +52,8 @@ if [ -f /etc/os-release ]; then
     LABEL="$(printf '%s_LIVE\n' "$BASE_NAME" | tr '[:lower:]' '[:upper:]')"
 else
     # fallback consistency
-    ISO_NAME="linux-live"
-    LABEL="LINUX_LIVE"
+    ISO_NAME="nlb-linux-live"
+    LABEL="NLB_LINUX_LIVE"
 fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd -P)
@@ -229,6 +229,9 @@ fi
 
 # Kernel real version
 KVER="$(uname -r)"
+# Kernel image (only name)
+K_IMG_NAME=$(basename $BOOT_IMAGE)
+
 
 if [ ! -d "/lib/modules/$KVER" ]; then
     echo -e "${RED}[ERROR]${NC} Kernel modules not found: /lib/modules/$KVER"
@@ -236,7 +239,7 @@ if [ ! -d "/lib/modules/$KVER" ]; then
 fi
 
 echo -e "${GREEN}[OK]${NC} Kernel detected:"
-echo "  BOOT_IMAGE : $BOOT_IMAGE"
+echo "  BOOT_IMAGE : $K_IMG_NAME"
 echo "  Kernel     : $VMLINUX"
 echo "  Version    : $KVER"
 echo "  Modules    : /lib/modules/$KVER"
@@ -246,8 +249,8 @@ echo "  Modules    : /lib/modules/$KVER"
 # ----------------------------------------------------------
 CURRENT_SECTION="kernel copy"
 
-cp "$VMLINUX" "$BOOT_DIR/vmlinuz" || exit 1
-chmod 0644 "$BOOT_DIR/vmlinuz"
+cp "$VMLINUX" "$BOOT_DIR/${K_IMG_NAME}" || exit 1
+chmod 0644 "$BOOT_DIR/${K_IMG_NAME}"
 
 FULLVER="$KVER"
 
@@ -416,27 +419,27 @@ terminal_output gfxterm
 background_image /boot/grub/theme/background.png
 
 menuentry "${ISO_NAME%-live} ${VERSION} live" {
-    linux /boot/vmlinuz quiet loglevel=3 zram=1
+    linux /boot/${K_IMG_NAME} quiet loglevel=3 zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Language & Live User Config)" {
-    linux /boot/vmlinuz quiet neoconfig=1 zram=1
+    linux /boot/${K_IMG_NAME} quiet neoconfig=1 zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Failsafe graphics)" {
-    linux /boot/vmlinuz quiet nomodeset vga=normal zram=1
+    linux /boot/${K_IMG_NAME} quiet nomodeset vga=normal zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (DEBUG)" {
-    linux /boot/vmlinuz debug=1 loglevel=7 zram=1
+    linux /boot/${K_IMG_NAME} debug=1 loglevel=7 zram=1
     initrd /boot/initramfs.img
 }
 
 menuentry "${ISO_NAME%-live} ${VERSION} live (Initramfs debug)" {
-    linux /boot/vmlinuz quiet initrd_debug=1 zram=1
+    linux /boot/${K_IMG_NAME} quiet initrd_debug=1 zram=1
     initrd /boot/initramfs.img
 }
 

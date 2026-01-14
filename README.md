@@ -3,6 +3,9 @@
 Neonatox Live Boot
 ==================
 
+<img width="1024" height="768" alt="neonatox_live_boot_logo" src="https://github.com/user-attachments/assets/99cc34da-4e36-4c85-a3c4-caaa3ff870b8" />
+
+
 **Neonatox Live Boot** is a from-scratch Linux Live ISO builder. It is designed as an educational and experimental project that demonstrates, step by step, how a complete live Linux system boots, detects hardware, mounts a real root filesystem, and hands control to systemd.
 
 This project intentionally avoids high-level frameworks (such as dracut or live-build) in order to expose the real boot mechanics.

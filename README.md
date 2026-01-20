@@ -37,30 +37,43 @@ Key Features
 
 Repository Structure
 --------------------
+
 ```
 ./neonatox-live-boot
 ├── build.sh
 ├── docs
-│   ├── 01-overview.html
-│   ├── 02-boot-flow.html
-│   ├── 03-initramfs-design.html
-│   ├── 04-device-detection.html
-│   ├── 05-overlayfs.html
-│   ├── 06-systemd-handoff.html
-│   ├── 07-debugging.html
-│   ├── 08-ventoy-support.html
-│   ├── 09-live-config.html
-│   ├── 10-boot-modes.html
+│   ├── 01-overview.md
+│   ├── 02-boot-flow.md
+│   ├── 03-initramfs-design.md
+│   ├── 04-device-detection.md
+│   ├── 05-overlayfs.md
+│   ├── 06-systemd-handoff.md
+│   ├── 07-debugging.md
+│   ├── 08-ventoy-support.md
+│   ├── 09-live-config.md
+│   ├── 10-boot-modes.md
 │   ├── boot-flow.svg
-│   └── README.html
+│   ├── html
+│   │   ├── 01-overview.html
+│   │   ├── 02-boot-flow.html
+│   │   ├── 03-initramfs-design.html
+│   │   ├── 04-device-detection.html
+│   │   ├── 05-overlayfs.html
+│   │   ├── 06-systemd-handoff.html
+│   │   ├── 07-debugging.html
+│   │   ├── 08-ventoy-support.html
+│   │   ├── 09-live-config.html
+│   │   ├── 10-boot-modes.html
+│   │   └── README.html
+│   └── README.md
 ├── initramfs
 │   ├── busybox
-│   └── init
+│   ├── init
 │   └── live-config.sh
 ├── iso
-│   └── background.png
-├── output
-│   └── *.iso
+│   ├── background.png
+│   └── README.md
+├── LICENSE
 └── README.md
 
 ```

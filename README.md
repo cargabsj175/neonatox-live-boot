@@ -173,7 +173,7 @@ Dependencies
 *   squashfs-tools
 *   busybox (static binary)
 *   zstd (for kernel module decompression)
-*   musl-gcc or x86_64-linux-musl-gcc (for build neccesary binaries)
+*   musl-gcc or x86_64-linux-musl-gcc (for build necessary binaries)
 
 * * *
 

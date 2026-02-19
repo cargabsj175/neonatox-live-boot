@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Build Tools - Neonatox Live Boot</title>
+</head>
+<body>
+
+<h1>Neonatox Live Boot Tools Builder (build-tools.sh)</h1>
+
+<p>
+The Neonatox Live Boot Tools Builder is part of the initramfs build workflow.
+Its purpose is to compile essential system binaries in a fully
+<strong>static</strong> manner using <code>musl</code>.
+</p>
+
+<p>
+This ensures:
+</p>
+
+<ul>
+  <li>Portability</li>
+  <li>Host system independence</li>
+  <li>Compatibility with minimal environments</li>
+  <li>Predictable runtime behavior</li>
+</ul>
+
+<hr>
+
+<h2>General Architecture</h2>
+
+<p>
+The system is structured around a <strong>central dispatcher</strong>
+(<code>build-tools.sh</code>) that discovers and executes individual
+tool-specific build scripts.
+</p>
+
+<p>
+Each tool script is fully self-contained and responsible for:
+</p>
+
+<ul>
+  <li>Fetching its source code</li>
+  <li>Configuring a minimal build</li>
+  <li>Enforcing static linking</li>
+  <li>Validating the resulting binary</li>
+  <li>Installing it into the initramfs staging area</li>
+</ul>
+
+<p>
+This modular design allows selective or full builds while maintaining
+a clean and debuggable pipeline.
+</p>
+
+<hr>
+
+<h2>Included Tools</h2>
+
+<h3>Bash</h3>
+
+<p>
+A statically linked and optimized version of the GNU Bash shell is compiled
+with only essential features enabled.
+</p>
+
+<p>
+The resulting binary is validated to confirm that it contains
+<strong>no dynamic dependencies</strong> before being integrated into
+the initramfs.
+</p>
+
+<p>
+Reference: <code>bash.sh</code>
+</p>
+
+<hr>
+
+<h3>BusyBox</h3>
+
+<p>
+BusyBox is compiled as a single static binary providing multiple core
+utilities required by the initramfs.
+</p>
+
+<p>
+A predefined configuration is used to ensure deterministic behavior,
+and static linking is enforced during compilation.
+</p>
+
+<p>
+Reference: <code>busybox.sh</code>
+</p>
+
+<hr>
+
+<h3>e2fsprogs</h3>
+
+<p>
+A minimal subset of e2fsprogs is compiled, focusing only on essential
+ext filesystem utilities.
+</p>
+
+<p>
+Unnecessary components are disabled to reduce binary size and
+complexity.
+</p>
+
+<p>
+Reference: <code>e2fsprogs.sh</code>
+</p>
+
+<hr>
+
+<h2>Key Features</h2>
+
+<ul>
+  <li>Fully static compilation</li>
+  <li>Complete host system independence</li>
+  <li>Modular and extensible structure</li>
+  <li>Automatic binary validation</li>
+  <li>Direct integration into initramfs</li>
+</ul>
+
+<hr>
+
+<h2>Execution Flow</h2>
+
+<p>
+The central builder supports selective execution:
+</p>
+
+<pre>
+./build-tools.sh --all
+./build-tools.sh --busybox
+./build-tools.sh --bash --busybox
+./build-tools.sh --clean
+</pre>
+
+<p>
+This allows granular control over which tools are compiled and installed.
+</p>
+
+<hr>
+
+<h2>Design Notes</h2>
+
+<p>
+The toolchain prioritizes:
+</p>
+
+<ul>
+  <li>Minimalism</li>
+  <li>Full runtime control</li>
+  <li>System reproducibility</li>
+  <li>Isolation of build components</li>
+</ul>
+
+<p>
+Each tool is built independently, keeping the build process transparent
+and easy to debug.
+</p>
+
+<hr>
+
+<h2>Philosophical Alignment</h2>
+
+<p>
+The Tools Builder reinforces the educational philosophy of Neonatox
+Live Boot:
+</p>
+
+<ul>
+  <li>No opaque dependency chains</li>
+  <li>No reliance on host system libraries</li>
+  <li>No unpredictable runtime behavior</li>
+</ul>
+
+<p>
+Everything included in the initramfs is compiled deliberately,
+validated explicitly, and understood completely.
+</p>
+
+</body>
+</html>

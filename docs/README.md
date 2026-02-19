@@ -24,6 +24,7 @@ While Neonatox Live Boot is fully functional and robust, it is also deliberately
 8. [Ventoy Integration](08-ventoy-support.md)
 9. [Live Configuration](09-live-config.md)
 10. [Boot Modes](10-boot-modes.md)
+11. [Neonatox Live Boot Tools Builder](11-build-tools.md)
 
 
 ## Boot Flow

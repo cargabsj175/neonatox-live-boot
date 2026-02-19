@@ -154,29 +154,20 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 CURRENT_SECTION="rootfs squashfs"
 
 clear
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.7 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.8 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
-EXCLUDES="
-/boot/*
-/opt/*
-/proc
-/sys
-/dev
-/run
-/tmp
-/media/*/*
-/mnt/*
-/lost+found
-/swapfile
-/var/log/*
-/var/cache/*
-/var/tmp/*
-/home/*
-/usr/src/*
-"
+EXCLUDES_FILE="$SCRIPT_DIR/EXCLUDES"
+
+if [ ! -f "$EXCLUDES_FILE" ]; then
+    echo -e "${RED}[ERROR]${NC} excludes file not found: $EXCLUDES_FILE"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK]${NC} Using excludes from $EXCLUDES_FILE"
+
 echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
-mksquashfs / "$SQUASHFS"  -e $(echo $EXCLUDES) -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
+mksquashfs / "$SQUASHFS" -e $(grep -v '^\s*$' "$EXCLUDES_FILE") -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."
@@ -282,19 +273,127 @@ mkdir -p \
   "$INITRAMFS/lib/modules/$FULLVER"
   
 
-CURRENT_SECTION="initramfs busybox setup"
+CURRENT_SECTION="initramfs busybox shell setup"
 
-install -m 0755 "$SCRIPT_DIR/initramfs/busybox" "$INITRAMFS/bin/busybox"
+BUSYBOX_BIN="$SCRIPT_DIR/initramfs/busybox"
+BASH_BIN="$SCRIPT_DIR/initramfs/bash"
+BUILD_TOOLS="$SCRIPT_DIR/build-tools.sh"
 
-(
-  cd "$INITRAMFS/bin"
-  ./busybox --list | grep -v "init" | grep -v "poweroff" | grep -v "reboot" | while read app; do
-    [ "$app" = "busybox" ] && continue
-    ln -sf busybox "$app"
-  done
-  
-)
+echo -e "${YELLOW}[INFO]${NC} Setting up initramfs shell environment..."
+
+# ----------------------------------------------------------
+# 1. Ensure busybox exists
+# ----------------------------------------------------------
+if [ ! -f "$BUSYBOX_BIN" ]; then
+    echo "[WARN] busybox not found at:"
+    echo "       $BUSYBOX_BIN"
+    echo
+
+    if [ -x "$BUILD_TOOLS" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Attempting to build busybox..."
+        "$BUILD_TOOLS" --busybox || {
+            echo -e "${RED}[ERROR]${NC} busybox build failed"
+            exit 1
+        }
+    else
+        echo -e "${RED}[ERROR]${NC} build-tools.sh not found or not executable"
+        echo
+        echo "Please run manually:"
+        echo "  ./build-tools.sh --busybox"
+        exit 1
+    fi
+
+    # Re-check
+    if [ ! -f "$BUSYBOX_BIN" ]; then
+        echo -e "${RED}[FATAL]${NC} busybox still missing after build attempt"
+        exit 1
+    fi
+
+    echo -e "${GREEN}[OK]${NC} busybox successfully built"
+fi
+
+# ----------------------------------------------------------
+# 2. Validate busybox binary
+# ----------------------------------------------------------
+if [ ! -x "$BUSYBOX_BIN" ]; then
+    echo -e "${RED}[ERROR]${NC} busybox exists but is not executable"
+    exit 1
+fi
+
+# Check that it runs
+if ! "$BUSYBOX_BIN" --help >/dev/null 2>&1; then
+    echo -e "${RED}[ERROR]${NC} busybox binary is not functional"
+    exit 1
+fi
+
+# Check switch_root support
+if ! "$BUSYBOX_BIN" --list | grep -q "^switch_root$"; then
+    echo -e "${RED}[FATAL]${NC} busybox was built without switch_root support"
+    echo "Rebuild busybox with CONFIG_SWITCH_ROOT=y"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK]${NC} busybox validated"
+
+# ----------------------------------------------------------
+# 3. Install busybox into initramfs
+# ----------------------------------------------------------
+install -m 0755 "$BUSYBOX_BIN" "$INITRAMFS/bin/busybox"
+
+# ----------------------------------------------------------
+# 4. Optional bash support
+# ----------------------------------------------------------
+if [ -f "$BASH_BIN" ]; then
+    echo -e "${GREEN}[OK]${NC} bash detected - using bash as /bin/sh"
+    
+    install -m 0755 "$BASH_BIN" "$INITRAMFS/bin/bash"
+
+    (
+        cd "$INITRAMFS/bin" || exit 1
+        ./busybox --list | \
+        grep -v "init" | \
+        grep -v "poweroff" | \
+        grep -v "reboot" | \
+        grep -v "^sh$" | \
+        while read app; do
+            [ "$app" = "busybox" ] && continue
+            ln -sf busybox "$app"
+        done
+    )
+
+    ln -sf bash "$INITRAMFS/bin/sh"
+
+else
+    echo -e "${GREEN}[OK]${NC} bash not found - using busybox sh"
+
+    (
+        cd "$INITRAMFS/bin" || exit 1
+        ./busybox --list | \
+        grep -v "init" | \
+        grep -v "poweroff" | \
+        grep -v "reboot" | \
+        while read app; do
+            [ "$app" = "busybox" ] && continue
+            ln -sf busybox "$app"
+        done
+    )
+fi
+
+# ----------------------------------------------------------
+# 5. switch_root (always from busybox)
+# ----------------------------------------------------------
 ln -sf ../bin/busybox "$INITRAMFS/sbin/switch_root"
+
+
+# ----------------------------------------------------------
+# 6. Static fsck.ext4 & mkfs.ext4 (for overlay with zram)
+# ----------------------------------------------------------
+[ -x "$SCRIPT_DIR/initramfs/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
+[ -x "$SCRIPT_DIR/initramfs/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
+
+
+echo -e "${GREEN}[OK]${NC} initramfs shell environment ready"
+
 
 # Reboot via kernel (emergency shell)
 cat > "$INITRAMFS/sbin/reboot" << "EOF"
@@ -376,6 +475,11 @@ cp "$MODDIR/modules.builtin" "$DEST/" 2>/dev/null || true
 CURRENT_SECTION="initramfs depmod"
 
 depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null || true
+
+# Avoid Bash (if enabled) "I have no name!"
+cat > "$INITRAMFS/etc/passwd" <<EOF
+root:x:0:0:root:/root:/bin/bash
+EOF
 
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
 install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"

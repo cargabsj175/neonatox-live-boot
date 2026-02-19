@@ -41,6 +41,7 @@ Repository Structure
 ```
 ./neonatox-live-boot
 ├── build.sh
+├── build-tools.sh
 ├── docs
 │   ├── 01-overview.md
 │   ├── 02-boot-flow.md
@@ -52,6 +53,7 @@ Repository Structure
 │   ├── 08-ventoy-support.md
 │   ├── 09-live-config.md
 │   ├── 10-boot-modes.md
+│   ├── 11-build-tools.md
 │   ├── boot-flow.svg
 │   ├── html
 │   │   ├── 01-overview.html
@@ -64,17 +66,24 @@ Repository Structure
 │   │   ├── 08-ventoy-support.html
 │   │   ├── 09-live-config.html
 │   │   ├── 10-boot-modes.html
+│   │   ├── 11-build-tools.html
 │   │   └── README.html
 │   └── README.md
+├── EXCLUDES
 ├── initramfs
-│   ├── busybox
 │   ├── init
-│   └── live-config.sh
+│   ├── live-config.sh
 ├── iso
 │   ├── background.png
 │   └── README.md
 ├── LICENSE
-└── README.md
+├── README.md
+└── tools
+    ├── bash.sh
+    ├── busybox-config
+    ├── busybox.sh
+    ├── e2fsprogs.sh
+    └── README.md
 
 ```
 * * *
@@ -112,6 +121,23 @@ These lessons are documented in detail in the `docs/` directory.
 
 * * *
 
+Tools Builder (initramfs)
+-----------------------
+
+The script includes a minimal toolchain builder used to generate static binaries for the initramfs environment.
+
+*   Central dispatcher: `build-tools.sh`
+*   Tools are defined as independent scripts inside a tools directory
+*   Each tool builds a fully static binary using musl and copy it into `initramfs/`
+
+**Included tools:**
+
+*   `busybox` → core utilities for early userspace (mandatory)
+*   `bash` → full shell support (optional)
+*   `e2fsprogs` → for ext4 filesystem support (optional)
+
+This toolchain ensures the initramfs remains minimal, reproducible, and independent from the host system.
+
 Usage
 -----
 
@@ -120,10 +146,14 @@ Usage
 ```
 git clone https://github.com/cargabsj175/neonatox-live-boot.git
 ```
-
-2.  Place a static BusyBox binary in `initramfs/busybox`
 3.  Customize `iso/background.png` if desired
-4.  Run the build script as root:
+4.  Run the script build-tools.sh for build **busybox** binary as normal user:
+
+```
+./build-tools.sh --busybox
+```
+
+5.  Run the script build.sh as root:
 
 ```
 sudo ./build.sh
@@ -131,7 +161,7 @@ sudo ./build.sh
 
 The resulting ISO will be generated in:
 
-output/neonatox-2026-x86\_64.iso
+output/neonatox-202X-x86\_64.iso
 
 * * *
 
@@ -143,6 +173,7 @@ Dependencies
 *   squashfs-tools
 *   busybox (static binary)
 *   zstd (for kernel module decompression)
+*   musl-gcc or x86_64-linux-musl-gcc (for build neccesary binaries)
 
 * * *
 

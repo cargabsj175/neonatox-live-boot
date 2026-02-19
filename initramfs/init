@@ -19,6 +19,10 @@ FOUND_DEV=""
 VENTOY_MODE=0
 FOUND_MATCH=0
 
+# Bash stuff
+HOME=/root
+TERM=linux
+
 # --------------------------------------------------
 # Core functions
 # --------------------------------------------------
@@ -27,7 +31,7 @@ emergency_shell() {
     exec sh
 }
 
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.7 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.8 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 # Checking if rootfs.sha256 exists
@@ -115,13 +119,15 @@ if grep -q "zram=1" /proc/cmdline; then
       
       # Format and mount
       if echo "$((ZRAM_KB * 1024))" > /sys/block/zram0/disksize && \
-         mkfs.ext2 -q /dev/zram0 && \
-         mkdir -p /mnt/zram-overlay && \
-         mount /dev/zram0 /mnt/zram-overlay; then
-        
+        command -v mkfs.ext4 >/dev/null && mkfs.ext4 -q /dev/zram0 && \
+        FSTYPE="ext4" || \
+        (command -v mkfs.ext2 >/dev/null && mkfs.ext2 -q /dev/zram0 && FSTYPE="ext2") && \
+        mkdir -p /mnt/zram-overlay && \
+        mount /dev/zram0 /mnt/zram-overlay; then
+   
         mkdir -p /mnt/zram-overlay/upper /mnt/zram-overlay/work
         OVERLAY_TYPE="zram"
-        echo -e "${GREEN}[OK]${NC} Zram overlay ready"
+        echo -e "${GREEN}[OK]${NC} Zram overlay ready with ${FSTYPE}"
       fi
     fi
   fi

@@ -107,6 +107,7 @@ realpath
 unxz
 gunzip
 unzstd
+initramfs/busybox
 "
 for bin in $REQUIRED_BINS; do
     if ! command -v "$bin" >/dev/null 2>&1; then

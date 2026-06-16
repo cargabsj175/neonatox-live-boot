@@ -1,0 +1,9 @@
+AGENTS.md
+initramfs/bash
+initramfs/busybox
+output/
+tools/bash*/
+tools/busybox*/
+tools/e2fs*/
+tools/*.tar.*
+PROPOSAL*

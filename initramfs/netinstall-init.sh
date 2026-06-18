@@ -43,7 +43,7 @@ emergency_shell() {
 show_ip() {
     echo ""
     echo -e "${BLUE}═════════════════════════════════════════${NC}"
-    echo -e "${GREEN}   NETINSTALL - NEONATOX LIVE BOOT${NC}"
+    echo -e "${GREEN}   NET INSTALL - NEONATOX LIVE BOOT${NC}"
     echo -e "${BLUE}═════════════════════════════════════════${NC}"
     echo ""
 
@@ -58,7 +58,7 @@ show_ip() {
     done
 
     echo ""
-    echo -e "  ${YELLOW}SSH:${NC} ssh root@<IP>"
+    echo -e "  ${YELLOW}SSH:${NC} ssh root@${IP%/*}"
     echo -e "  ${YELLOW}Pass:${NC} neonatox"
 }
 
@@ -97,6 +97,9 @@ mdev -s
 mount -t tmpfs tmpfs /run
 
 CMDLINE="$(cat /proc/cmdline)"
+
+mkdir -p /dev/pts
+mount -t devpts devpts -o gid=5,mode=0620 /dev/pts 2>/dev/null || true
 
 echo -e "${GREEN}[OK]${NC} basic mounts ready"
 
@@ -142,12 +145,12 @@ echo -e "${GREEN}[OK]${NC} modules loaded"
 echo -e "${YELLOW}[INFO]${NC} Bringing up network (DHCP)..."
 
 for iface in $(ip link | grep -o '^[0-9]*: [^:]*' | cut -d' ' -f2 | grep -v lo); do
-    ip link show "$iface"
+    # Debug: ip link show "$iface"
     ip link set "$iface" up
-    echo -e "  ${YELLOW}[DHCP]${NC} $iface (waiting 3s)..."
+    # Debug: echo -e "  ${YELLOW}[DHCP]${NC} $iface (waiting)..."
     sleep 2
-    ip link show "$iface" | head -2
-    udhcpc -i "$iface" -s /usr/share/udhcpc/default.script -t 5 -T 2 || true
+    # Debug: ip link show "$iface" | head -2
+    udhcpc -i "$iface" -s /usr/share/udhcpc/default.script -t 5 -T 2 2>/dev/null || true
     if ip -4 addr show "$iface" | grep -q 'inet '; then
         echo -e "  ${GREEN}[OK]${NC} $iface has IP"
     else
@@ -165,8 +168,12 @@ if [ -z "$HAS_DHCP" ] && [ -x /wifi-config.sh ]; then
 fi
 
 # --------------------------------------------------
-# 7. Root password for SSH (pre-hashed in initramfs)
+# 7. Root password for SSH
 # --------------------------------------------------
+mkdir -p /etc
+echo "root:x:0:0:root:/root:/bin/sh" > /etc/passwd
+ROOT_HASH="$(printf '%s' 'neonatox' | cryptpw -m sha512)"
+echo "root:$ROOT_HASH:1:0:99999:7:::" > /etc/shadow
 echo -e "${GREEN}[OK]${NC} root password: neonatox"
 
 # --------------------------------------------------

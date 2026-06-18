@@ -101,6 +101,10 @@ CMDLINE="$(cat /proc/cmdline)"
 mkdir -p /dev/pts
 mount -t devpts devpts -o gid=5,mode=0620 /dev/pts 2>/dev/null || true
 
+ln -sf /proc/self/fd/0 /dev/stdin
+ln -sf /proc/self/fd/1 /dev/stdout
+ln -sf /proc/self/fd/2 /dev/stderr
+
 echo -e "${GREEN}[OK]${NC} basic mounts ready"
 
 # --------------------------------------------------
@@ -168,7 +172,17 @@ if [ -z "$HAS_DHCP" ] && [ -x /wifi-config.sh ]; then
 fi
 
 # --------------------------------------------------
-# 7. Root password for SSH
+# 7. Time sync (if we have IP)
+# --------------------------------------------------
+HAS_IP="$(ip -4 addr | grep 'inet ' | grep -v 127.0.0.1 | head -1)"
+if [ -n "$HAS_IP" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Setting time via NTP..."
+    ntpd -n -q -p pool.ntp.org 2>/dev/null && echo -e "${GREEN}[OK]${NC} time synced" || \
+        echo -e "${YELLOW}[WARN]${NC} NTP sync failed (non-fatal)"
+fi
+
+# --------------------------------------------------
+# 8. Root password for SSH
 # --------------------------------------------------
 mkdir -p /etc
 echo "root:x:0:0:root:/root:/bin/sh" > /etc/passwd
@@ -177,7 +191,7 @@ echo "root:$ROOT_HASH:1:0:99999:7:::" > /etc/shadow
 echo -e "${GREEN}[OK]${NC} root password: neonatox"
 
 # --------------------------------------------------
-# 8. Start dropbear
+# 9. Start dropbear
 # --------------------------------------------------
 echo -e "${YELLOW}[INFO]${NC} Generating dropbear host keys..."
 mkdir -p /etc/dropbear
@@ -193,17 +207,17 @@ fi
 dropbear 2>/dev/null && echo -e "${GREEN}[OK]${NC} dropbear running" || echo -e "${RED}[ERROR]${NC} dropbear failed to start"
 
 # --------------------------------------------------
-# 9. Show connection info
+# 10. Show connection info
 # --------------------------------------------------
 show_ip
 
 # --------------------------------------------------
-# 10. Show installation guide
+# 11. Show installation guide
 # --------------------------------------------------
 show_guide
 
 # --------------------------------------------------
-# 11. Shell (now uses the same logic as emergency)
+# 12. Shell (now uses the same logic as emergency)
 # --------------------------------------------------
 echo -e "${YELLOW}[INFO]${NC} Netinstall environment ready"
 echo ""

@@ -1,0 +1,118 @@
+#!/bin/bash
+# fake-git: Simula git clone usando wget de busybox (uso general)
+# Uso: fake-git clone <url> [dest] [--branch <ref>]
+
+show_help() {
+    echo "Uso: fake-git clone <url> [dest] [--branch <ref>]"
+    echo ""
+    echo "Convierte URLs de git a tarballs y las descarga con wget"
+    echo ""
+    echo "Plataformas soportadas:"
+    echo "  - GitHub: https://github.com/user/repo.git"
+    echo "  - GitLab: https://gitlab.com/user/repo.git"
+    echo "  - Codeberg: https://codeberg.org/user/repo.git"
+    echo ""
+    echo "Opciones:"
+    echo "  --branch <ref>  Descargar rama o tag específico"
+}
+
+convert_to_tarball() {
+    local url="$1"
+    local ref="${2:-master}"
+
+    # GitHub
+    if [[ "$url" =~ ^https://github\.com/([^/]+)/([^/]+)\.git$ ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        echo "https://github.com/${user}/${repo}/archive/refs/heads/${ref}.tar.gz"
+    # GitLab
+    elif [[ "$url" =~ ^https://gitlab\.com/([^/]+)/([^/]+)\.git$ ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        echo "https://gitlab.com/${user}/${repo}/-/archive/${ref}/${repo}-${ref}.tar.gz"
+    # Codeberg
+    elif [[ "$url" =~ ^https://codeberg\.org/([^/]+)/([^/]+)\.git$ ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        echo "https://codeberg.org/${user}/${repo}/archive/${ref}.tar.gz"
+    else
+        echo "ERROR: Plataforma no soportada: $url" >&2
+        return 1
+    fi
+}
+
+cmd_clone() {
+    local url="$1"
+    local dest=""
+    local ref="master"
+    shift
+
+    # Parsear argumentos: dest es posicional, --branch es flag
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --branch)
+                if [[ -z "$2" ]]; then
+                    echo "ERROR: --branch requiere un argumento" >&2
+                    exit 1
+                fi
+                ref="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                if [[ -z "$dest" ]]; then
+                    dest="$1"
+                else
+                    echo "ERROR: Argumento inesperado: $1" >&2
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    # Si no hay destino, inferir del nombre del repo
+    if [[ -z "$dest" ]]; then
+        dest=$(basename "$url" .git)
+    fi
+
+    local tarball_url
+    tarball_url=$(convert_to_tarball "$url" "$ref") || exit 1
+
+    echo "Descargando $tarball_url..."
+    mkdir -p "$dest"
+
+    if wget --no-check-certificate -qO- "$tarball_url" | tar xz -C "$dest" --strip-components=1; then
+        echo "Descarga completada en $dest"
+        # Crear .git falso para compatibilidad
+        mkdir -p "$dest/.git"
+        cat > "$dest/.git/config" <<-EOF
+[core]
+	repositoryformatversion = 0
+	bare = false
+EOF
+        echo "ref: refs/heads/${ref}" > "$dest/.git/HEAD"
+    else
+        echo "ERROR: Fallo al descargar $tarball_url" >&2
+        rm -rf "$dest"
+        exit 1
+    fi
+}
+
+case "$1" in
+    clone)
+        shift
+        cmd_clone "$@"
+        ;;
+    --help|-h)
+        show_help
+        ;;
+    *)
+        echo "ERROR: Comando no reconocido: $1" >&2
+        show_help
+        exit 1
+        ;;
+esac

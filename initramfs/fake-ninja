@@ -1,0 +1,65 @@
+#!/bin/bash
+# fake-ninja: Wrapper mínimo para instalación (solo para nhopkg)
+
+case "$1" in
+  install)
+    # Leer configuración del build.ninja
+    if [ -f "build.ninja" ]; then
+      source build.ninja
+    else
+      echo "Error: build.ninja no encontrado"
+      exit 1
+    fi
+
+    DESTDIR="${DESTDIR}"
+
+    # Función de instalación
+    install_file() {
+      local src="$1"
+      local dest="$2"
+      local mode="$3"
+      local full_dest="${DESTDIR}${dest}"
+
+      mkdir -p "$(dirname "$full_dest")"
+      cp "$src" "$full_dest"
+      chmod "$mode" "$full_dest"
+    }
+
+    # Instalar ejecutables
+    for file in bin/*; do
+      install_file "$file" "/${PREFIX}/bin/$(basename "$file")" "755"
+    done
+
+    # Instalar librerías
+    for file in lib/nhopkg/*; do
+      install_file "$file" "/${PREFIX}/${LIBDIR}/nhopkg/$(basename "$file")" "644"
+    done
+
+    # Instalar configuración
+    install_file "etc/nhopkg/nhopkg.conf" "/${SYSCONFDIR}/nhopkg/nhopkg.conf" "644"
+    install_file "etc/nhopkg/trusted-keys/nhopkg-repo.pub" "/${SYSCONFDIR}/nhopkg/trusted-keys/nhopkg-repo.pub" "644"
+
+    # Instalar man pages y datos
+    install_file "share/mime/packages/x-nho.xml" "/${DATADIR}/mime/packages/x-nho.xml" "644"
+
+    for file in share/man/man8/*; do
+      install_file "$file" "/${DATADIR}/man/man8/$(basename "$file")" "644"
+    done
+
+    for file in share/man/man5/*; do
+      install_file "$file" "/${DATADIR}/man/man5/$(basename "$file")" "644"
+    done
+
+    # Instalar iconos
+    mkdir -p "${DESTDIR}/${DATADIR}/icons/hicolor/"
+    cp -r share/icons/hicolor/* "${DESTDIR}/${DATADIR}/icons/hicolor/"
+
+    echo "Instalación completada en DESTDIR=$DESTDIR"
+    ;;
+
+  *)
+    echo "Comando no reconocido: $1"
+    echo "Uso: fake-ninja install"
+    exit 1
+    ;;
+esac

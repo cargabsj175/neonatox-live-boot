@@ -1,5 +1,7 @@
 #!/bin/sh
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
+NLB_VERSION="v0.9"
+
 [ "$debug" = "1" ] && set -x
 
 # --------------------------------------------------
@@ -12,12 +14,31 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# --------------------------------------------------
+# Shell launcher (choose bash if available)
+# --------------------------------------------------
+run_shell() {
+    # Usamos setsid para crear una nueva sesión y forzar terminal de control
+    if [ -x /bin/bash ]; then
+        exec setsid /bin/bash --login "$@" </dev/tty1 >/dev/tty1 2>/dev/tty1
+    else
+        if /bin/sh -l -c 'true' 2>/dev/null; then
+            exec setsid /bin/sh -l "$@" </dev/tty1 >/dev/tty1 2>/dev/tty1
+        else
+            exec setsid - /bin/sh "$@" </dev/tty1 >/dev/tty1 2>/dev/tty1
+        fi
+    fi
+}
+
 # Global
 ISO_MNT="/mnt/iso"
 ISO_TEST="/mnt/iso_test"
 FOUND_DEV=""
 VENTOY_MODE=0
 FOUND_MATCH=0
+
+# Signal handling - Ctrl+C (SIGINT) works even as PID 1
+trap 'echo -e "\n${YELLOW}[SIGINT]${NC} Dropping to emergency shell"; run_shell' INT
 
 # Bash stuff
 HOME=/root
@@ -28,10 +49,10 @@ TERM=linux
 # --------------------------------------------------
 emergency_shell() {
     echo -e "${RED}[EMERGENCY]${NC} Dropping to shell"
-    exec sh
+    run_shell
 }
 
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.8 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - ${NLB_VERSION} Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 # Checking if rootfs.sha256 exists
@@ -295,8 +316,6 @@ done
 # --------------------------------------------------
 if [ -z "$FOUND_DEV" ]; then
     echo -e "${RED}[ERROR]${NC} rootfs.squashfs not found"
-    # echo "Available devices:" # Debug purposes
-    # ls -l /dev/sd* /dev/hd* /dev/nvme* /dev/mmcblk* /dev/sr* 2>/dev/null || true # Debug purposes
     emergency_shell
 fi
 

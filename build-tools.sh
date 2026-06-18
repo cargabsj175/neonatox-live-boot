@@ -7,6 +7,7 @@ set -e
 # ==========================================================
 
 PATH="$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+NLB_VERSION="v0.9"
 
 # Colors
 RED='\033[0;31m'
@@ -19,7 +20,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 TOOLS_DIR="$SCRIPT_DIR/tools"
 
 clear
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot Tools Builder - v0.8 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot Tools Builder - ${NLB_VERSION} Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 # ----------------------------------------------------------
@@ -36,6 +37,7 @@ Options:
   --toolname        Build specific tool
   --list            List available tools
   --clean           Clean build artifacts inside tools/
+  --version         Shows version
   --help            Show this help
 
 Examples:
@@ -44,6 +46,10 @@ Examples:
   ./build-tools.sh --bash --busybox
 
 EOF
+}
+
+show_ver(){
+echo "Neonatox Live Boot Tools Builder - ${NLB_VERSION} Carlos Sanchez - 2007-2026"
 }
 
 # ----------------------------------------------------------
@@ -127,6 +133,10 @@ for arg in "$@"; do
             for t in $AVAILABLE_TOOLS; do
                 echo "  --$t"
             done
+            exit 0
+        ;;        
+        --version|-v)
+            show_ver
             exit 0
         ;;
         --help|-h)

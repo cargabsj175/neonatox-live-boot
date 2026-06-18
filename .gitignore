@@ -1,9 +1,11 @@
 AGENTS.md
 initramfs/bash
 initramfs/busybox
+initramfs/dropbear*
+initramfs/*.ext4
+initramfs/wpa_*
+initramfs/zstd
 output/
-tools/bash*/
-tools/busybox*/
-tools/e2fs*/
+tools/*/
 tools/*.tar.*
 PROPOSAL*

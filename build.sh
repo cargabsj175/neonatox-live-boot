@@ -13,6 +13,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+NLB_VERSION="v0.9"
 
 # ---------------------------------------------
 # Default values (safe fallback)
@@ -40,6 +41,7 @@ if [ -f /etc/os-release ]; then
     else
         BASE_NAME="linux"
     fi
+
 
     ISO_NAME="${BASE_NAME}-live"
 
@@ -86,15 +88,84 @@ CURRENT_SECTION="initialization"
 trap 'echo -e "${RED}[FATAL]${NC} error in section: $CURRENT_SECTION (line $LINENO)"; echo "Command: $BASH_COMMAND"; exit 99' ERR
 
 # ----------------------------------------------------------
+# ARGUMENT PARSER
+# ----------------------------------------------------------
+
+NETINSTALL_MODE=false
+WITHOUT_MAKE_ISO=false
+MAKE_ISO_ONLY=false
+DO_CLEAN=false
+DO_CLEAN_ALL=false
+
+show_help() {
+    cat <<EOF
+Uso: sudo ./build.sh [OPCIONES]
+
+Opciones:
+  --make-netinstall        Generar ISO netinstall (sin squashfs, con herramientas de red)
+  --without-make-iso       Preparar artefactos sin empaquetar la ISO
+  --make-iso               Solo empaquetar ISO desde artefactos existentes
+  --clean                  Limpiar directorio de trabajo
+  --clean-all              Limpiar workdir, fuentes de tools e ISOs generadas
+  --version                Muestra la version
+  --help, -h               Mostrar esta ayuda
+
+Sin argumentos: build completo + ISO live (comportamiento actual)
+EOF
+}
+
+show_ver(){
+echo "Neonatox Live Boot - ${NLB_VERSION} Carlos Sanchez - 2007-2026"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --make-netinstall) NETINSTALL_MODE=true ;;
+        --without-make-iso) WITHOUT_MAKE_ISO=true ;;
+        --make-iso) MAKE_ISO_ONLY=true ;;
+        --clean) DO_CLEAN=true ;;
+        --clean-all) DO_CLEAN_ALL=true ;;
+        --version|-v) show_ver; exit 0 ;;
+        --help|-h) show_help; exit 0 ;;
+        *) echo -e "${RED}[ERROR]${NC} Argumento desconocido: $1" >&2; show_help; exit 1 ;;
+    esac
+    shift
+done
+
+# Validaciones entre flags
+if [ "$MAKE_ISO_ONLY" = true ] && [ "$WITHOUT_MAKE_ISO" = true ]; then
+    echo -e "${RED}[ERROR]${NC} --make-iso y --without-make-iso son contradictorios" >&2
+    exit 1
+fi
+
+# --clean y --clean-all tienen prioridad y salen
+if [ "$DO_CLEAN" = true ] || [ "$DO_CLEAN_ALL" = true ]; then
+    echo -e "${YELLOW}[CLEAN]${NC} Limpiando workdir..."
+    rm -rf "$WORKDIR"
+    if [ "$DO_CLEAN_ALL" = true ]; then
+        echo -e "${YELLOW}[CLEAN]${NC} Limpiando fuentes de tools..."
+        rm -rf "$SCRIPT_DIR"/tools/*/ "$SCRIPT_DIR"/tools/*.tar.* 2>/dev/null || true
+        echo -e "${YELLOW}[CLEAN]${NC} Limpiando ISOs generadas..."
+        rm -f "$OUTDIR"/*.iso 2>/dev/null || true
+    fi
+    echo -e "${GREEN}[OK]${NC} Limpieza completada"
+    exit 0
+fi
+
+# --make-netinstall: ajustar modo
+if [ "$NETINSTALL_MODE" = true ]; then
+    echo -e "${YELLOW}[INFO]${NC} Modo netinstall activado"
+fi
+
+# ----------------------------------------------------------
 # PRE-CHECKS
 # ----------------------------------------------------------
 CURRENT_SECTION="pre-checks"
 
 echo -e "${YELLOW}[CHECK]${NC} validating environment..."
 
+# Binarios siempre requeridos
 REQUIRED_BINS="
-mksquashfs
-xorriso
 grub-mkimage
 grub-mkstandalone
 cpio
@@ -109,6 +180,19 @@ gunzip
 unzstd
 initramfs/busybox
 "
+
+# mksquashfs no necesario en modo netinstall
+if [ "$NETINSTALL_MODE" = false ]; then
+    REQUIRED_BINS="$REQUIRED_BINS
+mksquashfs"
+fi
+
+# xorriso no necesario solo con --without-make-iso
+if [ "$WITHOUT_MAKE_ISO" = false ]; then
+    REQUIRED_BINS="$REQUIRED_BINS
+xorriso"
+fi
+
 for bin in $REQUIRED_BINS; do
     if ! command -v "$bin" >/dev/null 2>&1; then
         echo -e "${RED}[ERROR]${NC} missing required binary: $bin"
@@ -130,11 +214,48 @@ for dir in $REQUIRED_DIRS; do
 done
 
 [ -f "$BG_IMG" ] || {
-    echo -e "${RED}[ERROR]${NC} background image not found: $BG_IMG"
-    exit 12
+    if [ "$MAKE_ISO_ONLY" = true ]; then
+        echo -e "${YELLOW}[WARN]${NC} background image not found (not needed for --make-iso)"
+    else
+        echo -e "${RED}[ERROR]${NC} background image not found: $BG_IMG"
+        exit 12
+    fi
 }
 
 echo -e "${GREEN}[OK]${NC} environment valid"
+
+# ----------------------------------------------------------
+# MAKE ISO ONLY (skip build, repackage from existing artifacts)
+# ----------------------------------------------------------
+if [ "$MAKE_ISO_ONLY" = true ]; then
+    echo -e "${YELLOW}[INFO]${NC} Modo solo empaquetado ISO"
+    for f in "$SQUASHFS" "$INITRAMFS_IMG" "$GRUB_DIR/grub.cfg" "$GRUB_DIR/i386-pc/eltorito.img" "$EFI_DIR/BOOTX64.EFI"; do
+        if [ ! -f "$f" ]; then
+            echo -e "${RED}[ERROR]${NC} Artefacto faltante: $f" >&2
+            echo -e "${RED}[ERROR]${NC} Ejecute ./build.sh --without-make-iso primero" >&2
+            exit 1
+        fi
+    done
+
+    echo -e "${YELLOW}[INFO]${NC} Building final ISO..."
+    xorriso -as mkisofs \
+      -iso-level 3 \
+      -o "$OUTDIR/${ISO_NAME}-${VERSION}-${ARCH}.iso" \
+      -V "$LABEL" \
+      -b boot/grub/i386-pc/eltorito.img \
+        -no-emul-boot -boot-load-size 4 -boot-info-table \
+      -eltorito-catalog boot/grub/i386-pc/boot.cat \
+      -eltorito-alt-boot \
+         -e EFI/BOOT/BOOTX64.EFI \
+         -no-emul-boot \
+      "$ISO_DIR"
+
+    echo "============================================"
+    echo -e "${YELLOW}ISO READY${NC}:"
+    echo -e "${GREEN}$OUTDIR/${ISO_NAME}-${VERSION}-${ARCH}.iso${NC}"
+    echo "============================================"
+    exit 0
+fi
 
 # ----------------------------------------------------------
 # CLEANUP + CREATE DIRS
@@ -152,10 +273,11 @@ cp "$BG_IMG" "$THEME_DIR/background.png"
 # ----------------------------------------------------------
 # MAKE ROOTFS SQUASHFS
 # ----------------------------------------------------------
+if [ "$NETINSTALL_MODE" = false ]; then
 CURRENT_SECTION="rootfs squashfs"
 
 clear
-echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - v0.8 Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
+echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot - ${NLB_VERSION} Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
 EXCLUDES_FILE="$SCRIPT_DIR/EXCLUDES"
@@ -177,6 +299,7 @@ ROOTFS_HASH_FILE="$ISO_DIR/rootfs.sha256"
 CURRENT_SECTION="rootfs checksum"
 sha256sum "$SQUASHFS" | awk '{print $1}' > "$ROOTFS_HASH_FILE"
 echo -e "${GREEN}[OK]${NC} rootfs checksum generated"
+fi
 
 # ----------------------------------------------------------
 # CHOOSE KERNEL
@@ -266,6 +389,7 @@ mkdir -p \
   "$INITRAMFS/sys" \
   "$INITRAMFS/run" \
   "$INITRAMFS/tmp" \
+  "$INITRAMFS/var/lock" \
   "$INITRAMFS/mnt/iso" \
   "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
@@ -460,6 +584,28 @@ for d in $REQ_DIRS; do
     fi
 done
 
+# Módulos de red solo para netinstall
+if [ "$NETINSTALL_MODE" = true ]; then
+    echo -e "${YELLOW}[INFO]${NC} Adding network kernel modules (netinstall mode)..."
+    NET_DIRS="
+    kernel/drivers/net/ethernet/intel/e1000
+    kernel/drivers/net/ethernet/intel/e1000e
+    kernel/drivers/net/ethernet/realtek
+    kernel/drivers/net/ethernet/broadcom
+    kernel/drivers/net/ethernet/atheros
+    kernel/drivers/net/usb
+    kernel/drivers/net/virtio_net
+    kernel/drivers/net/wireless/ath/ath5k
+    kernel/drivers/net/wireless/ath/ath9k
+    "
+    for d in $NET_DIRS; do
+        if [ -d "$MODDIR/$d" ]; then
+            mkdir -p "$DEST/$d"
+            cp -a "$MODDIR/$d" "$DEST/${d%/*}/"
+        fi
+    done
+fi
+
 echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (on initramfs)"
 # Unzip .ko.zst files if they exist
 find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
@@ -478,13 +624,174 @@ CURRENT_SECTION="initramfs depmod"
 depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null || true
 
 # Avoid Bash (if enabled) "I have no name!"
+ROOT_PASS_HASH=""
+if command -v openssl >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(openssl passwd -6 neonatox 2>/dev/null || true)
+fi
+if [ -z "$ROOT_PASS_HASH" ] && command -v python3 >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(python3 -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
+fi
+if [ -z "$ROOT_PASS_HASH" ] && command -v python >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(python -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
+fi
+
 cat > "$INITRAMFS/etc/passwd" <<EOF
 root:x:0:0:root:/root:/bin/bash
 EOF
+if [ -n "$ROOT_PASS_HASH" ]; then
+    cat > "$INITRAMFS/etc/shadow" <<EOF
+root:$ROOT_PASS_HASH:19875:0:99999:7:::
+EOF
+    chmod 0600 "$INITRAMFS/etc/shadow"
+fi
 
-install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
-install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"
-install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
+# --------------------------------------------------
+# NETINSTALL MODE: tools, nhopkg, bootstrap, init
+# --------------------------------------------------
+if [ "$NETINSTALL_MODE" = true ]; then
+
+    # --- Auto-build required tools if missing ---
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static bash..."
+    if [ ! -f "$SCRIPT_DIR/initramfs/bash" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Building static bash..."
+        "$BUILD_TOOLS" --bash || exit 1
+    fi
+
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring e2fsprogs..."
+    if [ ! -f "$SCRIPT_DIR/initramfs/mkfs.ext4" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Building static e2fsprogs..."
+        "$BUILD_TOOLS" --e2fsprogs || exit 1
+    fi
+
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring dropbear..."
+    if [ ! -f "$SCRIPT_DIR/initramfs/dropbear" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Building static dropbear..."
+        "$BUILD_TOOLS" --dropbear || exit 1
+    fi
+
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring wpa_supplicant..."
+    if [ ! -f "$SCRIPT_DIR/initramfs/wpa_supplicant" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Building static wpa_supplicant..."
+        "$BUILD_TOOLS" --wpa_supplicant || exit 1
+    fi
+
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static zstd..."
+    if [ ! -f "$SCRIPT_DIR/initramfs/zstd" ]; then
+        echo -e "${YELLOW}[INFO]${NC} Building static zstd..."
+        "$BUILD_TOOLS" --zstd || exit 1
+    fi
+
+    # --- Copy netinstall binaries into initramfs ---
+    echo -e "${YELLOW}[INFO]${NC} Copying netinstall tools to initramfs..."
+    [ -f "$SCRIPT_DIR/initramfs/bash" ] && install -m 0755 "$SCRIPT_DIR/initramfs/bash" "$INITRAMFS/bin/bash"
+    [ -f "$SCRIPT_DIR/initramfs/dropbear" ] && install -m 0755 "$SCRIPT_DIR/initramfs/dropbear" "$INITRAMFS/sbin/dropbear"
+    [ -f "$SCRIPT_DIR/initramfs/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/initramfs/dropbearkey" "$INITRAMFS/sbin/dropbearkey"
+    [ -f "$SCRIPT_DIR/initramfs/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_supplicant" "$INITRAMFS/sbin/wpa_supplicant"
+    [ -f "$SCRIPT_DIR/initramfs/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_cli" "$INITRAMFS/bin/wpa_cli"
+    [ -f "$SCRIPT_DIR/initramfs/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_passphrase" "$INITRAMFS/bin/wpa_passphrase"
+    [ -f "$SCRIPT_DIR/initramfs/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4"
+    [ -f "$SCRIPT_DIR/initramfs/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4"
+    [ -f "$SCRIPT_DIR/initramfs/zstd" ] && install -m 0755 "$SCRIPT_DIR/initramfs/zstd" "$INITRAMFS/bin/zstd"
+    for L in unzstd zstdcat zstdmt; do
+        [ -f "$INITRAMFS/bin/zstd" ] && ln -svf zstd "$INITRAMFS/bin/$L"
+    done
+    echo -e "${GREEN}[OK]${NC} Netinstall tools copied"
+
+    # --- nhopkg (clone + meson install) ---
+    echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."
+    rm -rf /tmp/nhopkg 2>/dev/null || true
+    git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
+        echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
+        exit 1
+    }
+
+    echo -e "${YELLOW}[INFO]${NC} Installing nhopkg into initramfs..."
+    (
+        cd /tmp/nhopkg
+        sed -i 's/^NHOPKG_GETTEXT=.*/NHOPKG_GETTEXT=no/' src/nhopkg.conf.in 2>/dev/null
+        meson setup build 2>/dev/null
+        cd build
+        DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null
+        cp -rv "$PWD/DESTDIR/"* "$INITRAMFS/" 2>/dev/null
+    )
+    echo -e "${GREEN}[OK]${NC} nhopkg installed"
+
+    # --- neonatox-bootstrap (clone + copy) ---
+    echo -e "${YELLOW}[INFO]${NC} Cloning neonatox-bootstrap..."
+    rm -rf /tmp/neonatox-bootstrap 2>/dev/null || true
+    git clone https://github.com/cargabsj175/neonatox-bootstrap.git /tmp/neonatox-bootstrap 2>/dev/null || {
+        echo -e "${RED}[WARN]${NC} neonatox-bootstrap clone failed (non-fatal)"
+    }
+
+    if [ -d /tmp/neonatox-bootstrap ]; then
+        cp -r /tmp/neonatox-bootstrap "$INITRAMFS/" 2>/dev/null || true
+        mkdir -p "$INITRAMFS/var/nhopkg/cache" \
+                 "$INITRAMFS/var/nhopkg/files" \
+                 "$INITRAMFS/var/nhopkg/logs" \
+                 "$INITRAMFS/var/nhopkg/packages" \
+                 "$INITRAMFS/var/nhopkg/repo"
+        echo -e "${GREEN}[OK]${NC} neonatox-bootstrap copied"
+    fi
+
+    # --- Shell profile (ash/bash compatible) ---
+    cat > "$INITRAMFS/etc/profile" << 'PROFILE'
+NORMAL="\[\e[0m\]"
+RED="\[\e[1;31m\]"
+GREEN="\[\e[1;32m\]"
+if [[ $EUID == 0 ]] ; then
+  PS1="$RED\u [ $NORMAL\w$RED ]# $NORMAL"
+else
+  PS1="$GREEN\u [ $NORMAL\w$GREEN ]\$ $NORMAL"
+fi
+
+unset RED GREEN NORMAL
+
+echo "GNU Neonatox @ $(uname -m)"
+	echo ""
+PROFILE
+    chmod 0644 "$INITRAMFS/etc/profile"
+
+    # --- Fake tools for nhopkg (meson, ninja, git) ---
+    for _fake in "$SCRIPT_DIR/initramfs/fake-"*; do
+        [ -f "$_fake" ] || continue
+        _name="${_fake##*/}"
+        _target="${INITRAMFS}/bin/${_name#fake-}"
+        install -m 0755 "$_fake" "$_target"
+        echo -e "${GREEN}[OK]${NC} Fake tool: ${_name#fake-}"
+    done
+
+    # --- udhcpc default script (needed by busybox udhcpc) ---
+    mkdir -p "$INITRAMFS/usr/share/udhcpc"
+    cat > "$INITRAMFS/usr/share/udhcpc/default.script" << 'UDHCPC'
+#!/bin/sh
+case "$1" in
+    bound|renew)
+        ifconfig $interface $ip netmask $subnet
+        [ -n "$router" ] && route add default gw $router
+        [ -n "$dns" ] && echo "nameserver $dns" > /etc/resolv.conf
+        ;;
+    deconfig)
+        ifconfig $interface 0.0.0.0
+        ;;
+esac
+UDHCPC
+    chmod 0755 "$INITRAMFS/usr/share/udhcpc/default.script"
+
+    # --- wifi-config.sh ---
+    install -m 0755 "$SCRIPT_DIR/initramfs/wifi-config.sh" "$INITRAMFS/wifi-config.sh"
+
+    # --- Init: netinstall PID 1 ---
+    install -m 0755 "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$INITRAMFS/init"
+    echo -e "${GREEN}[OK]${NC} netinstall PID 1 ready"
+
+else
+    # --------------------------------------------------
+    # LIVE MODE: standard init + live-config
+    # --------------------------------------------------
+    install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
+    install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"
+    install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
+fi
 
 
 CURRENT_SECTION="initramfs packing"
@@ -523,6 +830,25 @@ terminal_output gfxterm
 
 background_image /boot/grub/theme/background.png
 
+if [ "$NETINSTALL_MODE" = true ]; then
+
+menuentry "${ISO_NAME%-live} Net Install" {
+    linux /boot/${K_IMG_NAME} quiet netinstall=1 loglevel=3
+    initrd /boot/initramfs.img
+}
+
+menuentry "${ISO_NAME%-live} Net Install (Debug)" {
+    linux /boot/${K_IMG_NAME} netinstall=1 debug=1 loglevel=7
+    initrd /boot/initramfs.img
+}
+
+menuentry "${ISO_NAME%-live} Net Install (Initramfs debug)" {
+    linux /boot/${K_IMG_NAME} quiet netinstall=1 initrd_debug=1
+    initrd /boot/initramfs.img
+}
+
+else
+
 menuentry "${ISO_NAME%-live} ${VERSION} live" {
     linux /boot/${K_IMG_NAME} quiet loglevel=3 zram=1
     initrd /boot/initramfs.img
@@ -547,6 +873,8 @@ menuentry "${ISO_NAME%-live} ${VERSION} live (Initramfs debug)" {
     linux /boot/${K_IMG_NAME} quiet initrd_debug=1 zram=1
     initrd /boot/initramfs.img
 }
+
+fi
 
 EOF
 echo -e "${GREEN}[OK]${NC} GRUB config ready"
@@ -590,9 +918,14 @@ echo -e "${GREEN}[OK]${NC} BIOS bootloader ready"
 # ----------------------------------------------------------
 # FINAL ISO BUILD
 # ----------------------------------------------------------
+if [ "$WITHOUT_MAKE_ISO" = false ]; then
 CURRENT_SECTION="final iso build"
 
 echo -e "${YELLOW}[INFO]${NC} Building final ISO..."
+
+if [ "$NETINSTALL_MODE" = true ]; then
+    ISO_NAME="${BASE_NAME}-netinstall"
+fi
 
 xorriso -as mkisofs \
   -iso-level 3 \
@@ -610,3 +943,4 @@ echo "============================================"
 echo -e "${YELLOW}ISO READY${NC}:"
 echo -e "${GREEN}$OUTDIR/${ISO_NAME}-${VERSION}-${ARCH}.iso${NC}"
 echo "============================================"
+fi

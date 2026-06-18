@@ -1,0 +1,91 @@
+#!/bin/bash
+# fake-meson: Wrapper mínimo para construir nhopkg sin Meson
+
+# Variables por defecto
+PREFIX="/usr"
+SYSCONFDIR="/etc"
+LOCALSTATEDIR="/var"
+LIBDIR="lib"
+DATADIR="share"
+
+# Variables derivadas
+PKGDATADIR="${PREFIX}/${DATADIR}/nhopkg"
+LOCALEDIR="${PREFIX}/${DATADIR}/locale"
+
+case "$1" in
+  setup)
+    BUILDDIR="$2"
+    if [ -z "$BUILDDIR" ]; then
+      echo "Uso: fake-meson setup <builddir>"
+      exit 1
+    fi
+
+    mkdir -p "$BUILDDIR"
+
+    # Guardar configuración
+    cat > "$BUILDDIR/build.ninja" << EOF
+PREFIX=$PREFIX
+SYSCONFDIR=$SYSCONFDIR
+LOCALSTATEDIR=$LOCALSTATEDIR
+LIBDIR=$LIBDIR
+DATADIR=$DATADIR
+PKGDATADIR=$PKGDATADIR
+LOCALEDIR=$LOCALEDIR
+EOF
+
+    # Procesar archivos .in
+    process_in_file() {
+        local input="$1"
+        local output="$2"
+        sed -e "s|@prefix@|${PREFIX}|g" \
+            -e "s|@sysconfdir@|${SYSCONFDIR}|g" \
+            -e "s|@localstatedir@|${LOCALSTATEDIR}|g" \
+            -e "s|@datadir@|${DATADIR}|g" \
+            -e "s|@pkgdatadir@|${PKGDATADIR}|g" \
+            -e "s|@localedir@|${LOCALEDIR}|g" \
+            -e "s|@PACKAGE@|nhopkg|g" \
+            -e "s|@PACKAGE_NAME@|nhopkg|g" \
+            -e "s|@PACKAGE_VERSION@|0.5.1|g" \
+            -e "s|@RELEASEDATE@|2026|g" \
+            "$input" > "$output"
+    }
+
+    # Crear estructura de directorios
+    mkdir -p "$BUILDDIR"/{bin,lib/nhopkg,etc/nhopkg,share/man/man8,share/man/man5,share/mime/packages,etc/nhopkg/trusted-keys,share/icons/hicolor}
+
+    # Procesar src/
+    cd src
+    for file in nhopkg.in nhopkg-repos.in nhouser.in nhopkg-overlay.in nhopkg-src.in nhoget.in; do
+        process_in_file "$file" "../$BUILDDIR/bin/${file%.in}"
+        chmod 755 "../$BUILDDIR/bin/${file%.in}"
+    done
+
+    for file in libnhopkg.in libnhopkg_udepsys.in libnhopkg_download.in; do
+        process_in_file "$file" "../$BUILDDIR/lib/nhopkg/${file%.in}"
+        chmod 644 "../$BUILDDIR/lib/nhopkg/${file%.in}"
+    done
+
+    process_in_file nhopkg.conf.in "../$BUILDDIR/etc/nhopkg/nhopkg.conf"
+    cd ..
+
+    # Procesar data/ (omitiendo po/)
+    cd data
+    for file in nhoget.8.in nhopkg.8.in nhopkg-src.8.in nhopkg-repos.8.in nhouser.8.in nhopkg-overlay.8.in; do
+        process_in_file "$file" "../$BUILDDIR/share/man/man8/${file%.in}"
+    done
+
+    process_in_file nhopkg.conf.5.in "../$BUILDDIR/share/man/man5/nhopkg.conf.5"
+    cp x-nho.xml "../$BUILDDIR/share/mime/packages/"
+    cp -r pixmaps/* "../$BUILDDIR/share/icons/hicolor/"
+    cp trusted-keys/nhopkg-repo.pub "../$BUILDDIR/etc/nhopkg/trusted-keys/"
+    cd ..
+
+    echo "Configuración completada en $BUILDDIR"
+    ;;
+
+  *)
+    echo "Comando no reconocido: $1"
+    echo "Uso: fake-meson setup <builddir>"
+    exit 1
+    ;;
+esac

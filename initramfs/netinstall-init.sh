@@ -183,11 +183,11 @@ echo -e "${YELLOW}[INFO]${NC} Generating dropbear host keys..."
 mkdir -p /etc/dropbear
 
 if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
-    dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key 2>/dev/null
+    dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key > /dev/null 2>&1
 fi
 
 if [ ! -f /etc/dropbear/dropbear_rsa_host_key ]; then
-    dropbearkey -t rsa -s 2048 -f /etc/dropbear/dropbear_rsa_host_key 2>/dev/null
+    dropbearkey -t rsa -s 2048 -f /etc/dropbear/dropbear_rsa_host_key > /dev/null 2>&1
 fi
 
 dropbear 2>/dev/null && echo -e "${GREEN}[OK]${NC} dropbear running" || echo -e "${RED}[ERROR]${NC} dropbear failed to start"

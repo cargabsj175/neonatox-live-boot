@@ -1,0 +1,17 @@
+case "${1:-live}" in
+    live)
+        if [ "$FOUND_DEV" != "ventoy_iso" ]; then
+            umount "$ISO_TEST" 2>/dev/null || true
+        fi
+        phase_kill_children
+        echo -e "${GREEN}[BOOT]${NC} starting ${INIT##*/}"
+        exec switch_root /mnt/newroot "$INIT"
+        ;;
+    netinstall)
+        show_ip
+        show_guide
+        echo -e "${YELLOW}[INFO]${NC} Netinstall environment ready"
+        echo ""
+        run_shell
+        ;;
+esac

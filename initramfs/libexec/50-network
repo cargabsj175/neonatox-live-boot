@@ -1,0 +1,6 @@
+[ "$1" != "netinstall" ] && exit 0
+
+dhcp_all
+wifi_config
+ntp_sync
+setup_ssh

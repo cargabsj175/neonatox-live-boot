@@ -804,18 +804,24 @@ UDHCPC
     # --- wifi-config.sh ---
     install -m 0755 "$SCRIPT_DIR/initramfs/wifi-config.sh" "$INITRAMFS/wifi-config.sh"
 
-    # --- Init: netinstall PID 1 ---
-    install -m 0755 "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$INITRAMFS/init"
-    echo -e "${GREEN}[OK]${NC} netinstall PID 1 ready"
+    # --- Netinstall fallback init (DEPRECATED, kept for v1.0) ---
+    install -m 0755 "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$INITRAMFS/netinstall-init.sh"
+    echo -e "${GREEN}[OK]${NC} netinstall tools ready"
 
 else
     # --------------------------------------------------
-    # LIVE MODE: standard init + live-config
+    # LIVE MODE: live-config + rootfs hash
     # --------------------------------------------------
-    install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
     install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"
     install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
 fi
+
+# --- Unified init + lib + libexec (both modes) ---
+install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
+cp -r "$SCRIPT_DIR/initramfs/lib" "$INITRAMFS/"
+cp -r "$SCRIPT_DIR/initramfs/libexec" "$INITRAMFS/"
+chmod 0755 "$INITRAMFS/libexec"/*
+echo -e "${GREEN}[OK]${NC} unified init + lib phases ready"
 
 
 CURRENT_SECTION="initramfs packing"

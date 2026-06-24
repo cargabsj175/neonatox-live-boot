@@ -1,0 +1,18 @@
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+sleep 1
+mdev -s
+mount -t tmpfs tmpfs /run
+
+mkdir -p /dev/pts
+mount -t devpts devpts -o gid=5,mode=0620 /dev/pts 2>/dev/null || true
+
+ln -sf /proc/self/fd/0 /dev/stdin
+ln -sf /proc/self/fd/1 /dev/stdout
+ln -sf /proc/self/fd/2 /dev/stderr
+
+for i in $(seq 0 15); do
+    [ -b /dev/loop$i ] || mknod /dev/loop$i b 7 $i
+done
+
+echo -e "${GREEN}[OK]${NC} basic mounts ready"

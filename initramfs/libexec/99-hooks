@@ -1,0 +1,3 @@
+for hook in /libexec/99-hooks.d/*; do
+    [ -f "$hook" ] && . "$hook"
+done

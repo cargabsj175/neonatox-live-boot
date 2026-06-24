@@ -22,6 +22,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 # ----------------------------------------------------------
 # Clone source if missing
 # ----------------------------------------------------------
@@ -55,9 +57,9 @@ file busybox | grep -q "statically linked" || {
     exit 1
 }
 
-DEST="../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 install -m755 busybox "$DEST/busybox"
 
-echo -e "${GREEN}[DONE]${NC} Busybox copied to initramfs"
+echo -e "${GREEN}[DONE]${NC} Busybox ready at $DEST"

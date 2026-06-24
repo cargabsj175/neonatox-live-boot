@@ -22,6 +22,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 VERSION="1.47.1"
 ARCHIVE="e2fsprogs-${VERSION}.tar.gz"
 URL="https://sourceforge.net/projects/e2fsprogs/files/e2fsprogs/v${VERSION}/${ARCHIVE}/download"
@@ -99,7 +101,7 @@ done
 
 echo -e "${GREEN}[OK]${NC} Static binaries verified"
 
-DEST="../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 # Copy ONLY the real binaries

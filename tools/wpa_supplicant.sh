@@ -21,6 +21,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
 # ----------------------------------------------------------
@@ -54,7 +56,7 @@ CC="$MUSLGCC" CFLAGS="-static -Os -s" LDFLAGS="-static" \
 echo -e "${YELLOW}[INFO]${NC} Compiling libnl..."
 make -j$JOBS
 make install
-cd ..
+cd "$SRC_DIR"
 
 echo -e "${GREEN}[OK]${NC} libnl static build ready"
 
@@ -274,7 +276,7 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Static wpa_supplicant verified"
 
-DEST="../../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 install -m755 wpa_supplicant    "$DEST/wpa_supplicant"

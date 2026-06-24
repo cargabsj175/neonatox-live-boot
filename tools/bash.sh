@@ -22,6 +22,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 VERSION="5.2.37"
 ARCHIVE="bash-$VERSION.tar.gz"
 URL="https://ftp.gnu.org/gnu/bash/$ARCHIVE"
@@ -68,7 +70,7 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Static Bash verified"
 
-DEST="../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 install -m755 bash "$DEST/bash"

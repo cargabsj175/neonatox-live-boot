@@ -21,6 +21,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 VERSION="1.5.6"
 ARCHIVE="zstd-$VERSION.tar.gz"
 URL="https://github.com/facebook/zstd/releases/download/v$VERSION/$ARCHIVE"
@@ -53,7 +55,7 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Static zstd verified"
 
-DEST="../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 install -m755 programs/zstd "$DEST/zstd"

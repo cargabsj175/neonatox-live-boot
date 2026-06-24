@@ -178,7 +178,7 @@ realpath
 unxz
 gunzip
 unzstd
-initramfs/busybox
+tools/output/busybox
 "
 
 # mksquashfs no necesario en modo netinstall
@@ -380,9 +380,27 @@ echo -e "${YELLOW}[INFO]${NC} Building initramfs..."
 INITRAMFS="$WORKDIR/initramfs"
 mkdir -p "$INITRAMFS"
 
+#mkdir -p \
+  #"$INITRAMFS/bin" \
+  #"$INITRAMFS/sbin" \
+  #"$INITRAMFS/etc" \
+  #"$INITRAMFS/dev" \
+  #"$INITRAMFS/proc" \
+  #"$INITRAMFS/sys" \
+  #"$INITRAMFS/run" \
+  #"$INITRAMFS/tmp" \
+  #"$INITRAMFS/var/lock" \
+  #"$INITRAMFS/mnt/iso" \
+  #"$INITRAMFS/mnt/iso_test" \
+  #"$INITRAMFS/mnt/newroot" \
+  #"$INITRAMFS/mnt/ram" \
+  #"$INITRAMFS/mnt/ro_root" \
+  #"$INITRAMFS/lib/modules/$FULLVER"
+  
 mkdir -p \
-  "$INITRAMFS/bin" \
-  "$INITRAMFS/sbin" \
+  "$INITRAMFS/usr/bin" \
+  "$INITRAMFS/usr/sbin" \
+  "$INITRAMFS/usr/lib/modules/$FULLVER" \
   "$INITRAMFS/etc" \
   "$INITRAMFS/dev" \
   "$INITRAMFS/proc" \
@@ -394,14 +412,20 @@ mkdir -p \
   "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
   "$INITRAMFS/mnt/ram" \
-  "$INITRAMFS/mnt/ro_root" \
-  "$INITRAMFS/lib/modules/$FULLVER"
+  "$INITRAMFS/mnt/ro_root"
+
+# usr-merge
+ln -sf usr/bin "$INITRAMFS/bin"
+ln -sf usr/sbin "$INITRAMFS/sbin"
+ln -sf usr/lib "$INITRAMFS/lib"
+ln -sf bin "$INITRAMFS/usr/sbin"
+#ln -sf usr/lib "$INITRAMFS/lib64"
   
 
 CURRENT_SECTION="initramfs busybox shell setup"
 
-BUSYBOX_BIN="$SCRIPT_DIR/initramfs/busybox"
-BASH_BIN="$SCRIPT_DIR/initramfs/bash"
+BUSYBOX_BIN="$SCRIPT_DIR/tools/output/busybox"
+BASH_BIN="$SCRIPT_DIR/tools/output/bash"
 BUILD_TOOLS="$SCRIPT_DIR/build-tools.sh"
 
 echo -e "${YELLOW}[INFO]${NC} Setting up initramfs shell environment..."
@@ -513,8 +537,8 @@ ln -sf ../bin/busybox "$INITRAMFS/sbin/switch_root"
 # ----------------------------------------------------------
 # 6. Static fsck.ext4 & mkfs.ext4 (for overlay with zram)
 # ----------------------------------------------------------
-[ -x "$SCRIPT_DIR/initramfs/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
-[ -x "$SCRIPT_DIR/initramfs/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
+[ -x "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
+[ -x "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
 
 
 echo -e "${GREEN}[OK]${NC} initramfs shell environment ready"
@@ -652,46 +676,46 @@ if [ "$NETINSTALL_MODE" = true ]; then
 
     # --- Auto-build required tools if missing ---
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static bash..."
-    if [ ! -f "$SCRIPT_DIR/initramfs/bash" ]; then
+    if [ ! -f "$SCRIPT_DIR/tools/output/bash" ]; then
         echo -e "${YELLOW}[INFO]${NC} Building static bash..."
         "$BUILD_TOOLS" --bash || exit 1
     fi
 
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring e2fsprogs..."
-    if [ ! -f "$SCRIPT_DIR/initramfs/mkfs.ext4" ]; then
+    if [ ! -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ]; then
         echo -e "${YELLOW}[INFO]${NC} Building static e2fsprogs..."
         "$BUILD_TOOLS" --e2fsprogs || exit 1
     fi
 
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring dropbear..."
-    if [ ! -f "$SCRIPT_DIR/initramfs/dropbear" ]; then
+    if [ ! -f "$SCRIPT_DIR/tools/output/dropbear" ]; then
         echo -e "${YELLOW}[INFO]${NC} Building static dropbear..."
         "$BUILD_TOOLS" --dropbear || exit 1
     fi
 
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring wpa_supplicant..."
-    if [ ! -f "$SCRIPT_DIR/initramfs/wpa_supplicant" ]; then
+    if [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ]; then
         echo -e "${YELLOW}[INFO]${NC} Building static wpa_supplicant..."
         "$BUILD_TOOLS" --wpa_supplicant || exit 1
     fi
 
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static zstd..."
-    if [ ! -f "$SCRIPT_DIR/initramfs/zstd" ]; then
+    if [ ! -f "$SCRIPT_DIR/tools/output/zstd" ]; then
         echo -e "${YELLOW}[INFO]${NC} Building static zstd..."
         "$BUILD_TOOLS" --zstd || exit 1
     fi
 
     # --- Copy netinstall binaries into initramfs ---
     echo -e "${YELLOW}[INFO]${NC} Copying netinstall tools to initramfs..."
-    [ -f "$SCRIPT_DIR/initramfs/bash" ] && install -m 0755 "$SCRIPT_DIR/initramfs/bash" "$INITRAMFS/bin/bash"
-    [ -f "$SCRIPT_DIR/initramfs/dropbear" ] && install -m 0755 "$SCRIPT_DIR/initramfs/dropbear" "$INITRAMFS/sbin/dropbear"
-    [ -f "$SCRIPT_DIR/initramfs/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/initramfs/dropbearkey" "$INITRAMFS/sbin/dropbearkey"
-    [ -f "$SCRIPT_DIR/initramfs/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_supplicant" "$INITRAMFS/sbin/wpa_supplicant"
-    [ -f "$SCRIPT_DIR/initramfs/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_cli" "$INITRAMFS/bin/wpa_cli"
-    [ -f "$SCRIPT_DIR/initramfs/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/initramfs/wpa_passphrase" "$INITRAMFS/bin/wpa_passphrase"
-    [ -f "$SCRIPT_DIR/initramfs/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4"
-    [ -f "$SCRIPT_DIR/initramfs/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/initramfs/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4"
-    [ -f "$SCRIPT_DIR/initramfs/zstd" ] && install -m 0755 "$SCRIPT_DIR/initramfs/zstd" "$INITRAMFS/bin/zstd"
+    [ -f "$SCRIPT_DIR/tools/output/bash" ] && install -m 0755 "$SCRIPT_DIR/tools/output/bash" "$INITRAMFS/bin/bash"
+    [ -f "$SCRIPT_DIR/tools/output/dropbear" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbear" "$INITRAMFS/sbin/dropbear"
+    [ -f "$SCRIPT_DIR/tools/output/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbearkey" "$INITRAMFS/sbin/dropbearkey"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_supplicant" "$INITRAMFS/sbin/wpa_supplicant"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_cli" "$INITRAMFS/bin/wpa_cli"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_passphrase" "$INITRAMFS/bin/wpa_passphrase"
+    [ -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4"
+    [ -f "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4"
+    [ -f "$SCRIPT_DIR/tools/output/zstd" ] && install -m 0755 "$SCRIPT_DIR/tools/output/zstd" "$INITRAMFS/bin/zstd"
     for L in unzstd zstdcat zstdmt; do
         [ -f "$INITRAMFS/bin/zstd" ] && ln -svf zstd "$INITRAMFS/bin/$L"
     done

@@ -21,6 +21,8 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} Using compiler: $MUSLGCC"
 
+cd "$SRC_DIR"
+
 VERSION="2026.91"
 ARCHIVE="DROPBEAR_${VERSION}.tar.gz"
 URL="https://github.com/mkj/dropbear/archive/refs/tags/${ARCHIVE}"
@@ -61,7 +63,7 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Static Dropbear verified"
 
-DEST="../../initramfs"
+DEST="$OUT_DIR"
 mkdir -p "$DEST"
 
 install -m755 dropbear    "$DEST/dropbear"

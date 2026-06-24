@@ -18,6 +18,9 @@ NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 TOOLS_DIR="$SCRIPT_DIR/tools"
+SRC_DIR="$TOOLS_DIR/src"
+OUT_DIR="$TOOLS_DIR/output"
+export SRC_DIR OUT_DIR
 
 clear
 echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot Tools Builder - ${NLB_VERSION} Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
@@ -99,14 +102,14 @@ clean_tools() {
     # === CUSTOM CLEAN COMMANDS ===
     # Agrega aquí lo que quieras eliminar
 
-   echo -e "${YELLOW}[INFO]${NC} Removing tar archives..."
-    rm -f *.tar.* 2>/dev/null || true
+    echo -e "${YELLOW}[INFO]${NC} Removing tar archives..."
+    rm -f src/*.tar.* 2>/dev/null || true
 
    echo -e "${YELLOW}[INFO]${NC} Removing extracted source dirs..."
-    rm -rf */ 2>/dev/null || true
+    rm -rf src/*/ 2>/dev/null || true
 
    echo -e "${YELLOW}[INFO]${NC} Removing build leftovers..."
-    rm -f *.log *.tmp 2>/dev/null || true
+    rm -f src/*.log src/*.tmp 2>/dev/null || true
 
     cd "$SCRIPT_DIR"
 

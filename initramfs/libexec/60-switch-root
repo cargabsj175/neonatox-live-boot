@@ -14,4 +14,28 @@ case "${1:-live}" in
         echo ""
         run_shell
         ;;
+    disk)
+        parse_root_cmdline
+        if [ -z "$root" ]; then
+            echo -e "${RED}[ERROR]${NC} root= not specified in cmdline"
+            emergency_shell "No root device"
+        fi
+        splash_start
+        setup_udev || emergency_shell "udev failed"
+        activate_raid
+        activate_lvm
+        if [ -n "$rootdelay" ]; then
+            sleep "$rootdelay"
+        fi
+        splash_update 50
+        do_try_resume
+        do_mount_root || emergency_shell "Mount root failed"
+        splash_update 100
+        splash_quit
+        phase_kill_children
+        [ -n "$UDEVD" ] && kill "$(pidof "${UDEVD##*/}" 2>/dev/null)" 2>/dev/null || true
+        sleep 1
+        echo -e "${GREEN}[BOOT]${NC} starting ${INIT##*/}"
+        exec switch_root /.root "$INIT"
+        ;;
 esac

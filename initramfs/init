@@ -9,10 +9,12 @@ CMDLINE="$(cat /proc/cmdline)"
 
 MODE="live"
 echo "$CMDLINE" | grep -q "netinstall=1" && MODE="netinstall"
+echo "$CMDLINE" | grep -qE "(^| )root=" && MODE="disk"
 
 case "$MODE" in
     live)       . /lib/init-live.sh ;;
     netinstall) . /lib/init-live.sh; . /lib/init-net.sh ;;
+    disk)       . /lib/init-disk.sh ;;
 esac
 
 for phase in /libexec/[0-9][0-9]-*; do

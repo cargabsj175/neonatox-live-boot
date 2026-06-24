@@ -1,7 +1,13 @@
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
-sleep 1
-mdev -s
+
+if [ "${1:-live}" = "disk" ]; then
+    mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+else
+    sleep 1
+    mdev -s
+fi
+
 mount -t tmpfs tmpfs /run
 
 mkdir -p /dev/pts

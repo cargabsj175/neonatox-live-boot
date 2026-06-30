@@ -12,7 +12,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
     exit 1
 fi
 
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 NLB_VERSION="v0.9"
 
 # ---------------------------------------------
@@ -380,27 +380,9 @@ echo -e "${YELLOW}[INFO]${NC} Building initramfs..."
 INITRAMFS="$WORKDIR/initramfs"
 mkdir -p "$INITRAMFS"
 
-#mkdir -p \
-  #"$INITRAMFS/bin" \
-  #"$INITRAMFS/sbin" \
-  #"$INITRAMFS/etc" \
-  #"$INITRAMFS/dev" \
-  #"$INITRAMFS/proc" \
-  #"$INITRAMFS/sys" \
-  #"$INITRAMFS/run" \
-  #"$INITRAMFS/tmp" \
-  #"$INITRAMFS/var/lock" \
-  #"$INITRAMFS/mnt/iso" \
-  #"$INITRAMFS/mnt/iso_test" \
-  #"$INITRAMFS/mnt/newroot" \
-  #"$INITRAMFS/mnt/ram" \
-  #"$INITRAMFS/mnt/ro_root" \
-  #"$INITRAMFS/lib/modules/$FULLVER"
-  
 mkdir -p \
   "$INITRAMFS/usr/bin" \
-  "$INITRAMFS/usr/sbin" \
-  "$INITRAMFS/usr/lib/modules/$FULLVER" \
+  "$INITRAMFS/usr/lib" \
   "$INITRAMFS/etc" \
   "$INITRAMFS/dev" \
   "$INITRAMFS/proc" \
@@ -412,16 +394,14 @@ mkdir -p \
   "$INITRAMFS/mnt/iso_test" \
   "$INITRAMFS/mnt/newroot" \
   "$INITRAMFS/mnt/ram" \
-  "$INITRAMFS/mnt/ro_root"
-
-# usr-merge
-ln -sf usr/bin "$INITRAMFS/bin"
-ln -sf usr/sbin "$INITRAMFS/sbin"
-ln -sf usr/lib "$INITRAMFS/lib"
-ln -sf bin "$INITRAMFS/usr/sbin"
-#ln -sf usr/lib "$INITRAMFS/lib64"
+  "$INITRAMFS/mnt/ro_root" \
+  "$INITRAMFS/usr/lib/modules/$FULLVER"
   
-
+ln -sf usr/bin "$INITRAMFS/bin"
+ln -sf usr/bin "$INITRAMFS/sbin"
+ln -sf bin "$INITRAMFS/usr/sbin"
+ln -sf usr/lib "$INITRAMFS/lib"
+  
 CURRENT_SECTION="initramfs busybox shell setup"
 
 BUSYBOX_BIN="$SCRIPT_DIR/tools/output/busybox"
@@ -487,7 +467,7 @@ echo -e "${GREEN}[OK]${NC} busybox validated"
 # ----------------------------------------------------------
 # 3. Install busybox into initramfs
 # ----------------------------------------------------------
-install -m 0755 "$BUSYBOX_BIN" "$INITRAMFS/bin/busybox"
+install -m 0755 "$BUSYBOX_BIN" "$INITRAMFS/usr/bin/busybox"
 
 # ----------------------------------------------------------
 # 4. Optional bash support
@@ -495,10 +475,10 @@ install -m 0755 "$BUSYBOX_BIN" "$INITRAMFS/bin/busybox"
 if [ -f "$BASH_BIN" ]; then
     echo -e "${GREEN}[OK]${NC} bash detected - using bash as /bin/sh"
     
-    install -m 0755 "$BASH_BIN" "$INITRAMFS/bin/bash"
+    install -m 0755 "$BASH_BIN" "$INITRAMFS/usr/bin/bash"
 
     (
-        cd "$INITRAMFS/bin" || exit 1
+        cd "$INITRAMFS/usr/bin" || exit 1
         ./busybox --list | \
         grep -v "init" | \
         grep -v "poweroff" | \
@@ -510,13 +490,13 @@ if [ -f "$BASH_BIN" ]; then
         done
     )
 
-    ln -sf bash "$INITRAMFS/bin/sh"
+    ln -sf bash "$INITRAMFS/usr/bin/sh"
 
 else
     echo -e "${GREEN}[OK]${NC} bash not found - using busybox sh"
 
     (
-        cd "$INITRAMFS/bin" || exit 1
+        cd "$INITRAMFS/usr/bin" || exit 1
         ./busybox --list | \
         grep -v "init" | \
         grep -v "poweroff" | \
@@ -531,21 +511,21 @@ fi
 # ----------------------------------------------------------
 # 5. switch_root (always from busybox)
 # ----------------------------------------------------------
-ln -sf ../bin/busybox "$INITRAMFS/sbin/switch_root"
+ln -sf ../bin/busybox "$INITRAMFS/usr/bin/switch_root"
 
 
 # ----------------------------------------------------------
 # 6. Static fsck.ext4 & mkfs.ext4 (for overlay with zram)
 # ----------------------------------------------------------
-[ -x "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
-[ -x "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
+[ -x "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/usr/bin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
+[ -x "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/usr/bin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
 
 
 echo -e "${GREEN}[OK]${NC} initramfs shell environment ready"
 
 
 # Reboot via kernel (emergency shell)
-cat > "$INITRAMFS/sbin/reboot" << "EOF"
+cat > "$INITRAMFS/usr/bin/reboot" << "EOF"
 #!/bin/sh
 
 echo "Restarting..."
@@ -556,7 +536,7 @@ echo b > /proc/sysrq-trigger
 EOF
 
 # Power off via kernel (emergency shell)
-cat > "$INITRAMFS/sbin/poweroff" << "EOF"
+cat > "$INITRAMFS/usr/bin/poweroff" << "EOF"
 #!/bin/sh
 
 echo "Shutting down..."
@@ -566,7 +546,7 @@ sync
 echo o > /proc/sysrq-trigger
 EOF
 
-chmod 0755 $INITRAMFS/sbin/{reboot,poweroff}
+chmod 0755 $INITRAMFS/usr/bin/{reboot,poweroff}
 
 # Nodos de dispositivo mínimos
 mknod -m 600 "$INITRAMFS/dev/console" c 5 1
@@ -582,7 +562,7 @@ mknod -m 622 "$INITRAMFS/dev/tty4"    c 4 4
 # Copiar módulos del kernel
 # ---------------------------------------------
 MODDIR="/lib/modules/$FULLVER"
-DEST="$INITRAMFS/lib/modules/$FULLVER"
+DEST="$INITRAMFS/usr/lib/modules/$FULLVER"
 mkdir -p "$DEST"
 
 # Directorios generales necesarios
@@ -632,11 +612,11 @@ fi
 
 echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (on initramfs)"
 # Unzip .ko.zst files if they exist
-find "$INITRAMFS/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
+find "$INITRAMFS/usr/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
 # Unzip .ko.gz files with gunzip if they exist
-find "$INITRAMFS/lib/modules" -name "*.ko.gz" -exec gunzip -f {} \; 2>/dev/null || true
+find "$INITRAMFS/usr/lib/modules" -name "*.ko.gz" -exec gunzip -f {} \; 2>/dev/null || true
 # Unzip .ko.xz files with unxz if they exist
-find "$INITRAMFS/lib/modules" -name "*.ko.xz" -exec unxz -f {} \; 2>/dev/null || true
+find "$INITRAMFS/usr/lib/modules" -name "*.ko.xz" -exec unxz -f {} \; 2>/dev/null || true
 
 # Metadatos de módulos
 cp "$MODDIR/modules.order"   "$DEST/" 2>/dev/null || true
@@ -707,17 +687,17 @@ if [ "$NETINSTALL_MODE" = true ]; then
 
     # --- Copy netinstall binaries into initramfs ---
     echo -e "${YELLOW}[INFO]${NC} Copying netinstall tools to initramfs..."
-    [ -f "$SCRIPT_DIR/tools/output/bash" ] && install -m 0755 "$SCRIPT_DIR/tools/output/bash" "$INITRAMFS/bin/bash"
-    [ -f "$SCRIPT_DIR/tools/output/dropbear" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbear" "$INITRAMFS/sbin/dropbear"
-    [ -f "$SCRIPT_DIR/tools/output/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbearkey" "$INITRAMFS/sbin/dropbearkey"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_supplicant" "$INITRAMFS/sbin/wpa_supplicant"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_cli" "$INITRAMFS/bin/wpa_cli"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_passphrase" "$INITRAMFS/bin/wpa_passphrase"
-    [ -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/sbin/mkfs.ext4"
-    [ -f "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/sbin/fsck.ext4"
-    [ -f "$SCRIPT_DIR/tools/output/zstd" ] && install -m 0755 "$SCRIPT_DIR/tools/output/zstd" "$INITRAMFS/bin/zstd"
+    [ -f "$SCRIPT_DIR/tools/output/bash" ] && install -m 0755 "$SCRIPT_DIR/tools/output/bash" "$INITRAMFS/usr/bin/bash"
+    [ -f "$SCRIPT_DIR/tools/output/dropbear" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbear" "$INITRAMFS/usr/bin/dropbear"
+    [ -f "$SCRIPT_DIR/tools/output/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbearkey" "$INITRAMFS/usr/bin/dropbearkey"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_supplicant" "$INITRAMFS/usr/bin/wpa_supplicant"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_cli" "$INITRAMFS/usr/bin/wpa_cli"
+    [ -f "$SCRIPT_DIR/tools/output/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_passphrase" "$INITRAMFS/usr/bin/wpa_passphrase"
+    [ -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/usr/bin/mkfs.ext4"
+    [ -f "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/usr/bin/fsck.ext4"
+    [ -f "$SCRIPT_DIR/tools/output/zstd" ] && install -m 0755 "$SCRIPT_DIR/tools/output/zstd" "$INITRAMFS/usr/bin/zstd"
     for L in unzstd zstdcat zstdmt; do
-        [ -f "$INITRAMFS/bin/zstd" ] && ln -svf zstd "$INITRAMFS/bin/$L"
+        [ -f "$INITRAMFS/usr/bin/zstd" ] && ln -svf zstd "$INITRAMFS/usr/bin/$L"
     done
     echo -e "${GREEN}[OK]${NC} Netinstall tools copied"
 
@@ -818,7 +798,7 @@ fi
 
 # --- Unified init + lib + libexec (both modes) ---
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
-cp -r "$SCRIPT_DIR/initramfs/lib" "$INITRAMFS/"
+cp -r "$SCRIPT_DIR/initramfs/lib" "$INITRAMFS/usr/"
 cp -r "$SCRIPT_DIR/initramfs/libexec" "$INITRAMFS/"
 chmod 0755 "$INITRAMFS/libexec"/*
 echo -e "${GREEN}[OK]${NC} unified init + lib phases ready"

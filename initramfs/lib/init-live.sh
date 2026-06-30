@@ -1,4 +1,6 @@
 # init-live.sh — live profile: overlay, device scan, ventoy, squashfs
+PROFILE_NAME="live"
+PROFILE_REQUIRES="mkfs.ext4 fsck.ext4 zstd"
 
 ISO_MNT="/mnt/iso"
 ISO_TEST="/mnt/iso_test"

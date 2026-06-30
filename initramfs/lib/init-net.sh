@@ -1,4 +1,6 @@
 # init-net.sh — netinstall profile: DHCP, WiFi, NTP, Dropbear
+PROFILE_NAME="netinstall"
+PROFILE_REQUIRES="bash dropbear dropbearkey wpa_supplicant wpa_cli wpa_passphrase zstd"
 
 show_ip() {
     echo ""

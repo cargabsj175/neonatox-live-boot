@@ -3,13 +3,17 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin
 [ "$debug" = "1" ] && set -x
 
 . /lib/init-common.sh
+
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+
 show_banner
 
 CMDLINE="$(cat /proc/cmdline)"
 
 MODE="live"
 echo "$CMDLINE" | grep -q "netinstall=1" && MODE="netinstall"
-echo "$CMDLINE" | grep -qE "(^| )root=" && MODE="disk"
+case "$CMDLINE" in root=*|*" root="*) MODE="disk" ;; esac
 
 case "$MODE" in
     live)       . /lib/init-live.sh ;;

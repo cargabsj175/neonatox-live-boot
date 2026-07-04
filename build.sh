@@ -289,8 +289,26 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Using excludes from $EXCLUDES_FILE"
 
-echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
-mksquashfs / "$SQUASHFS" -ef "$EXCLUDES_FILE" -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
+echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..."
+
+# Create pseudo file to recreate empty home/root dirs with original permissions
+PSEUDO_FILE=$(mktemp /tmp/squashfs-pseudo.XXXXXXXXXX)
+trap 'rm -f "$PSEUDO_FILE"' EXIT
+
+for dir in /home /root; do
+  [ -d "$dir" ] || continue
+  ls -1 "$dir" | while read -r entry; do
+    full="$dir/$entry"
+    [ -d "$full" ] || continue
+    mode=$(stat -c "%a" "$full")
+    uid=$(stat -c "%u" "$full")
+    gid=$(stat -c "%g" "$full")
+    echo "$full d $mode $uid $gid" >> "$PSEUDO_FILE"
+  done
+done
+
+mksquashfs / "$SQUASHFS" -ef "$EXCLUDES_FILE" -pf "$PSEUDO_FILE" \
+  -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."

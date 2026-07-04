@@ -476,6 +476,15 @@ if [ "$NETINSTALL_MODE" = true ]; then
     [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && "$BUILD_TOOLS" --wpa_supplicant || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static zstd..."
     [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && "$BUILD_TOOLS" --zstd || true
+    echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring btrfs-progs..."
+    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && "$BUILD_TOOLS" --btrfsprogs || true
+fi
+
+if [ "$NETINSTALL_MODE" = false ]; then
+    echo -e "${YELLOW}[INFO]${NC} Live: ensuring static zstd..."
+    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && "$BUILD_TOOLS" --zstd || true
+    echo -e "${YELLOW}[INFO]${NC} Live: ensuring btrfs-progs..."
+    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && "$BUILD_TOOLS" --btrfsprogs || true
 fi
 
 # ----------------------------------------------------------

@@ -1,0 +1,24 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+[ "$PROFILE" != "netinstall" ] && exit 0
+
+# nhopkg
+if [ -d "$EXTRA_DIR/nhopkg-install" ]; then
+    cp -r "$EXTRA_DIR/nhopkg-install"/* "$WDIR/" 2>/dev/null || true
+fi
+
+# neonatox-bootstrap
+if [ -d "$EXTRA_DIR/neonatox-bootstrap" ]; then
+    cp -r "$EXTRA_DIR/neonatox-bootstrap" "$WDIR/" 2>/dev/null || true
+fi
+
+# nhopkg runtime dirs
+mkdir -p "$WDIR/var/nhopkg/cache" \
+         "$WDIR/var/nhopkg/files" \
+         "$WDIR/var/nhopkg/logs" \
+         "$WDIR/var/nhopkg/packages" \
+         "$WDIR/var/nhopkg/repo"
+
+exit 0

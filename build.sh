@@ -372,52 +372,23 @@ FULLVER="$KVER"
 echo -e "${GREEN}[OK]${NC} Kernel copied to ISO"
 
 # ----------------------------------------------------------
-# INITRAMFS BUILD
+# INITRAMFS BUILD (using mkinitramfs)
 # ----------------------------------------------------------
 CURRENT_SECTION="initramfs build"
 
 echo -e "${YELLOW}[INFO]${NC} Building initramfs..."
-INITRAMFS="$WORKDIR/initramfs"
-mkdir -p "$INITRAMFS"
-
-mkdir -p \
-  "$INITRAMFS/usr/bin" \
-  "$INITRAMFS/usr/lib" \
-  "$INITRAMFS/etc" \
-  "$INITRAMFS/dev" \
-  "$INITRAMFS/proc" \
-  "$INITRAMFS/sys" \
-  "$INITRAMFS/run" \
-  "$INITRAMFS/tmp" \
-  "$INITRAMFS/var/lock" \
-  "$INITRAMFS/mnt/iso" \
-  "$INITRAMFS/mnt/iso_test" \
-  "$INITRAMFS/mnt/newroot" \
-  "$INITRAMFS/mnt/ram" \
-  "$INITRAMFS/mnt/ro_root" \
-  "$INITRAMFS/usr/lib/modules/$FULLVER"
-  
-ln -sf usr/bin "$INITRAMFS/bin"
-ln -sf usr/bin "$INITRAMFS/sbin"
-ln -sf bin "$INITRAMFS/usr/sbin"
-ln -sf usr/lib "$INITRAMFS/lib"
-  
-CURRENT_SECTION="initramfs busybox shell setup"
 
 BUSYBOX_BIN="$SCRIPT_DIR/tools/output/busybox"
 BASH_BIN="$SCRIPT_DIR/tools/output/bash"
 BUILD_TOOLS="$SCRIPT_DIR/build-tools.sh"
 
-echo -e "${YELLOW}[INFO]${NC} Setting up initramfs shell environment..."
-
 # ----------------------------------------------------------
-# 1. Ensure busybox exists
+# 1. Ensure + validate busybox
 # ----------------------------------------------------------
 if [ ! -f "$BUSYBOX_BIN" ]; then
     echo "[WARN] busybox not found at:"
     echo "       $BUSYBOX_BIN"
     echo
-
     if [ -x "$BUILD_TOOLS" ]; then
         echo -e "${YELLOW}[INFO]${NC} Attempting to build busybox..."
         "$BUILD_TOOLS" --busybox || {
@@ -426,388 +397,136 @@ if [ ! -f "$BUSYBOX_BIN" ]; then
         }
     else
         echo -e "${RED}[ERROR]${NC} build-tools.sh not found or not executable"
-        echo
         echo "Please run manually:"
         echo "  ./build-tools.sh --busybox"
         exit 1
     fi
-
-    # Re-check
     if [ ! -f "$BUSYBOX_BIN" ]; then
         echo -e "${RED}[FATAL]${NC} busybox still missing after build attempt"
         exit 1
     fi
-
     echo -e "${GREEN}[OK]${NC} busybox successfully built"
 fi
 
-# ----------------------------------------------------------
-# 2. Validate busybox binary
-# ----------------------------------------------------------
 if [ ! -x "$BUSYBOX_BIN" ]; then
     echo -e "${RED}[ERROR]${NC} busybox exists but is not executable"
     exit 1
 fi
-
-# Check that it runs
 if ! "$BUSYBOX_BIN" --help >/dev/null 2>&1; then
     echo -e "${RED}[ERROR]${NC} busybox binary is not functional"
     exit 1
 fi
-
-# Check switch_root support
 if ! "$BUSYBOX_BIN" --list | grep -q "^switch_root$"; then
     echo -e "${RED}[FATAL]${NC} busybox was built without switch_root support"
     echo "Rebuild busybox with CONFIG_SWITCH_ROOT=y"
     exit 1
 fi
-
 echo -e "${GREEN}[OK]${NC} busybox validated"
 
 # ----------------------------------------------------------
-# 3. Install busybox into initramfs
+# 2. Auto-build netinstall tools if needed
 # ----------------------------------------------------------
-install -m 0755 "$BUSYBOX_BIN" "$INITRAMFS/usr/bin/busybox"
-
-# ----------------------------------------------------------
-# 4. Optional bash support
-# ----------------------------------------------------------
-if [ -f "$BASH_BIN" ]; then
-    echo -e "${GREEN}[OK]${NC} bash detected - using bash as /bin/sh"
-    
-    install -m 0755 "$BASH_BIN" "$INITRAMFS/usr/bin/bash"
-
-    (
-        cd "$INITRAMFS/usr/bin" || exit 1
-        ./busybox --list | \
-        grep -v "init" | \
-        grep -v "poweroff" | \
-        grep -v "reboot" | \
-        grep -v "^sh$" | \
-        while read app; do
-            [ "$app" = "busybox" ] && continue
-            ln -sf busybox "$app"
-        done
-    )
-
-    ln -sf bash "$INITRAMFS/usr/bin/sh"
-
-else
-    echo -e "${GREEN}[OK]${NC} bash not found - using busybox sh"
-
-    (
-        cd "$INITRAMFS/usr/bin" || exit 1
-        ./busybox --list | \
-        grep -v "init" | \
-        grep -v "poweroff" | \
-        grep -v "reboot" | \
-        while read app; do
-            [ "$app" = "busybox" ] && continue
-            ln -sf busybox "$app"
-        done
-    )
-fi
-
-# ----------------------------------------------------------
-# 5. switch_root (always from busybox)
-# ----------------------------------------------------------
-ln -sf ../bin/busybox "$INITRAMFS/usr/bin/switch_root"
-
-
-# ----------------------------------------------------------
-# 6. Static fsck.ext4 & mkfs.ext4 (for overlay with zram)
-# ----------------------------------------------------------
-[ -x "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/usr/bin/mkfs.ext4" && echo -e "${YELLOW}[INFO]${NC} mkfs.ext4 copied to INITRAMFS" || true
-[ -x "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/usr/bin/fsck.ext4" && echo -e "${YELLOW}[INFO]${NC} fsck.ext4 copied to INITRAMFS" || true
-
-
-echo -e "${GREEN}[OK]${NC} initramfs shell environment ready"
-
-
-# Reboot via kernel (emergency shell)
-cat > "$INITRAMFS/usr/bin/reboot" << "EOF"
-#!/bin/sh
-
-echo "Restarting..."
-sleep 1
-echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
-sync
-echo b > /proc/sysrq-trigger
-EOF
-
-# Power off via kernel (emergency shell)
-cat > "$INITRAMFS/usr/bin/poweroff" << "EOF"
-#!/bin/sh
-
-echo "Shutting down..."
-sleep 1
-echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
-sync
-echo o > /proc/sysrq-trigger
-EOF
-
-chmod 0755 $INITRAMFS/usr/bin/{reboot,poweroff}
-
-# Nodos de dispositivo mínimos
-mknod -m 600 "$INITRAMFS/dev/console" c 5 1
-mknod -m 666 "$INITRAMFS/dev/null"    c 1 3
-mknod -m 666 "$INITRAMFS/dev/zero"    c 1 5
-mknod -m 666 "$INITRAMFS/dev/tty"     c 5 0
-mknod -m 622 "$INITRAMFS/dev/tty1"    c 4 1
-mknod -m 622 "$INITRAMFS/dev/tty2"    c 4 2
-mknod -m 622 "$INITRAMFS/dev/tty3"    c 4 3
-mknod -m 622 "$INITRAMFS/dev/tty4"    c 4 4
-
-# ---------------------------------------------
-# Copiar módulos del kernel
-# ---------------------------------------------
-MODDIR="/lib/modules/$FULLVER"
-DEST="$INITRAMFS/usr/lib/modules/$FULLVER"
-mkdir -p "$DEST"
-
-# Directorios generales necesarios
-REQ_DIRS="
-kernel/drivers/block
-kernel/drivers/scsi
-kernel/drivers/usb
-kernel/drivers/ata
-kernel/drivers/cdrom/
-kernel/fs
-kernel/drivers/hid
-kernel/drivers/input
-kernel/lib/lz4
-kernel/lib/842
-"
-
-CURRENT_SECTION="initramfs kernel modules copy"
-
-for d in $REQ_DIRS; do
-    if [ -d "$MODDIR/$d" ]; then
-        mkdir -p "$DEST/$d"
-        cp -a "$MODDIR/$d" "$DEST/${d%/*}/"
-    fi
-done
-
-# Módulos de red solo para netinstall
 if [ "$NETINSTALL_MODE" = true ]; then
-    echo -e "${YELLOW}[INFO]${NC} Adding network kernel modules (netinstall mode)..."
-    NET_DIRS="
-    kernel/drivers/net/ethernet/intel/e1000
-    kernel/drivers/net/ethernet/intel/e1000e
-    kernel/drivers/net/ethernet/realtek
-    kernel/drivers/net/ethernet/broadcom
-    kernel/drivers/net/ethernet/atheros
-    kernel/drivers/net/usb
-    kernel/drivers/net/virtio_net
-    kernel/drivers/net/wireless/ath/ath5k
-    kernel/drivers/net/wireless/ath/ath9k
-    "
-    for d in $NET_DIRS; do
-        if [ -d "$MODDIR/$d" ]; then
-            mkdir -p "$DEST/$d"
-            cp -a "$MODDIR/$d" "$DEST/${d%/*}/"
-        fi
-    done
-fi
-
-echo -e "${YELLOW}[INFO]${NC} decompressing kernel modules (on initramfs)"
-# Unzip .ko.zst files if they exist
-find "$INITRAMFS/usr/lib/modules" -name "*.ko.zst" -exec unzstd -f --rm {} \; 2>/dev/null || true
-# Unzip .ko.gz files with gunzip if they exist
-find "$INITRAMFS/usr/lib/modules" -name "*.ko.gz" -exec gunzip -f {} \; 2>/dev/null || true
-# Unzip .ko.xz files with unxz if they exist
-find "$INITRAMFS/usr/lib/modules" -name "*.ko.xz" -exec unxz -f {} \; 2>/dev/null || true
-
-# Metadatos de módulos
-cp "$MODDIR/modules.order"   "$DEST/" 2>/dev/null || true
-cp "$MODDIR/modules.builtin" "$DEST/" 2>/dev/null || true
-
-# Generar dependencias
-CURRENT_SECTION="initramfs depmod"
-
-depmod -b "$INITRAMFS" "$FULLVER" 2>/dev/null || true
-
-# Avoid Bash (if enabled) "I have no name!"
-ROOT_PASS_HASH=""
-if command -v openssl >/dev/null 2>&1; then
-    ROOT_PASS_HASH=$(openssl passwd -6 neonatox 2>/dev/null || true)
-fi
-if [ -z "$ROOT_PASS_HASH" ] && command -v python3 >/dev/null 2>&1; then
-    ROOT_PASS_HASH=$(python3 -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
-fi
-if [ -z "$ROOT_PASS_HASH" ] && command -v python >/dev/null 2>&1; then
-    ROOT_PASS_HASH=$(python -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
-fi
-
-cat > "$INITRAMFS/etc/passwd" <<EOF
-root:x:0:0:root:/root:/bin/bash
-EOF
-if [ -n "$ROOT_PASS_HASH" ]; then
-    cat > "$INITRAMFS/etc/shadow" <<EOF
-root:$ROOT_PASS_HASH:19875:0:99999:7:::
-EOF
-    chmod 0600 "$INITRAMFS/etc/shadow"
-fi
-
-# --------------------------------------------------
-# NETINSTALL MODE: tools, nhopkg, bootstrap, init
-# --------------------------------------------------
-if [ "$NETINSTALL_MODE" = true ]; then
-
-    # --- Auto-build required tools if missing ---
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static bash..."
-    if [ ! -f "$SCRIPT_DIR/tools/output/bash" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Building static bash..."
-        "$BUILD_TOOLS" --bash || exit 1
-    fi
-
+    [ ! -f "$SCRIPT_DIR/tools/output/bash" ] && "$BUILD_TOOLS" --bash || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring e2fsprogs..."
-    if [ ! -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Building static e2fsprogs..."
-        "$BUILD_TOOLS" --e2fsprogs || exit 1
-    fi
-
+    [ ! -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && "$BUILD_TOOLS" --e2fsprogs || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring dropbear..."
-    if [ ! -f "$SCRIPT_DIR/tools/output/dropbear" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Building static dropbear..."
-        "$BUILD_TOOLS" --dropbear || exit 1
-    fi
-
+    [ ! -f "$SCRIPT_DIR/tools/output/dropbear" ] && "$BUILD_TOOLS" --dropbear || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring wpa_supplicant..."
-    if [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Building static wpa_supplicant..."
-        "$BUILD_TOOLS" --wpa_supplicant || exit 1
-    fi
-
+    [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && "$BUILD_TOOLS" --wpa_supplicant || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static zstd..."
-    if [ ! -f "$SCRIPT_DIR/tools/output/zstd" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Building static zstd..."
-        "$BUILD_TOOLS" --zstd || exit 1
-    fi
+    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && "$BUILD_TOOLS" --zstd || true
+fi
 
-    # --- Copy netinstall binaries into initramfs ---
-    echo -e "${YELLOW}[INFO]${NC} Copying netinstall tools to initramfs..."
-    [ -f "$SCRIPT_DIR/tools/output/bash" ] && install -m 0755 "$SCRIPT_DIR/tools/output/bash" "$INITRAMFS/usr/bin/bash"
-    [ -f "$SCRIPT_DIR/tools/output/dropbear" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbear" "$INITRAMFS/usr/bin/dropbear"
-    [ -f "$SCRIPT_DIR/tools/output/dropbearkey" ] && install -m 0755 "$SCRIPT_DIR/tools/output/dropbearkey" "$INITRAMFS/usr/bin/dropbearkey"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_supplicant" "$INITRAMFS/usr/bin/wpa_supplicant"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_cli" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_cli" "$INITRAMFS/usr/bin/wpa_cli"
-    [ -f "$SCRIPT_DIR/tools/output/wpa_passphrase" ] && install -m 0755 "$SCRIPT_DIR/tools/output/wpa_passphrase" "$INITRAMFS/usr/bin/wpa_passphrase"
-    [ -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/mkfs.ext4" "$INITRAMFS/usr/bin/mkfs.ext4"
-    [ -f "$SCRIPT_DIR/tools/output/fsck.ext4" ] && install -m 0755 "$SCRIPT_DIR/tools/output/fsck.ext4" "$INITRAMFS/usr/bin/fsck.ext4"
-    [ -f "$SCRIPT_DIR/tools/output/zstd" ] && install -m 0755 "$SCRIPT_DIR/tools/output/zstd" "$INITRAMFS/usr/bin/zstd"
-    for L in unzstd zstdcat zstdmt; do
-        [ -f "$INITRAMFS/usr/bin/zstd" ] && ln -svf zstd "$INITRAMFS/usr/bin/$L"
-    done
-    echo -e "${GREEN}[OK]${NC} Netinstall tools copied"
+# ----------------------------------------------------------
+# 3. Populate EXTRA_DIR for hooks
+# ----------------------------------------------------------
+EXTRA_DIR="$WORKDIR/extra"
+mkdir -p "$EXTRA_DIR"
 
-    # --- nhopkg (clone + meson install) ---
+if [ "$NETINSTALL_MODE" = true ]; then
+    # wifi-config.sh, netinstall-init.sh
+    [ -f "$SCRIPT_DIR/initramfs/wifi-config.sh" ] && \
+        cp "$SCRIPT_DIR/initramfs/wifi-config.sh" "$EXTRA_DIR/"
+    [ -f "$SCRIPT_DIR/initramfs/netinstall-init.sh" ] && \
+        cp "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$EXTRA_DIR/"
+
+    # nhopkg (clone + meson install)
     echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."
     rm -rf /tmp/nhopkg 2>/dev/null || true
     git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
         echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
         exit 1
     }
-
-    echo -e "${YELLOW}[INFO]${NC} Installing nhopkg into initramfs..."
+    echo -e "${YELLOW}[INFO]${NC} Installing nhopkg..."
     (
         cd /tmp/nhopkg
-        sed -i 's/^NHOPKG_GETTEXT=.*/NHOPKG_GETTEXT=no/' src/nhopkg.conf.in 2>/dev/null
-        meson setup build 2>/dev/null
-        cd build
-        DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null
-        cp -rv "$PWD/DESTDIR/"* "$INITRAMFS/" 2>/dev/null
+        sed -i 's/^NHOPKG_GETTEXT=.*/NHOPKG_GETTEXT=no/' src/nhopkg.conf.in 2>/dev/null || true
+        meson setup build 2>/dev/null || true
+        cd build 2>/dev/null || exit 1
+        DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null || true
+        [ -d "$PWD/DESTDIR" ] && cp -r "$PWD/DESTDIR"/* "$EXTRA_DIR/nhopkg-install/" 2>/dev/null || true
     )
     echo -e "${GREEN}[OK]${NC} nhopkg installed"
 
-    # --- neonatox-bootstrap (clone + copy) ---
+    # neonatox-bootstrap (clone)
     echo -e "${YELLOW}[INFO]${NC} Cloning neonatox-bootstrap..."
     rm -rf /tmp/neonatox-bootstrap 2>/dev/null || true
     git clone https://github.com/cargabsj175/neonatox-bootstrap.git /tmp/neonatox-bootstrap 2>/dev/null || {
-        echo -e "${RED}[WARN]${NC} neonatox-bootstrap clone failed (non-fatal)"
+        echo -e "${YELLOW}[WARN]${NC} neonatox-bootstrap clone failed (non-fatal)"
     }
-
     if [ -d /tmp/neonatox-bootstrap ]; then
-        cp -r /tmp/neonatox-bootstrap "$INITRAMFS/" 2>/dev/null || true
-        mkdir -p "$INITRAMFS/var/nhopkg/cache" \
-                 "$INITRAMFS/var/nhopkg/files" \
-                 "$INITRAMFS/var/nhopkg/logs" \
-                 "$INITRAMFS/var/nhopkg/packages" \
-                 "$INITRAMFS/var/nhopkg/repo"
+        cp -r /tmp/neonatox-bootstrap "$EXTRA_DIR/neonatox-bootstrap" 2>/dev/null || true
         echo -e "${GREEN}[OK]${NC} neonatox-bootstrap copied"
     fi
-
-    # --- Shell profile (ash/bash compatible) ---
-    cat > "$INITRAMFS/etc/profile" << 'PROFILE'
-NORMAL="\[\e[0m\]"
-RED="\[\e[1;31m\]"
-GREEN="\[\e[1;32m\]"
-if [[ $EUID == 0 ]] ; then
-  PS1="$RED\u [ $NORMAL\w$RED ]# $NORMAL"
 else
-  PS1="$GREEN\u [ $NORMAL\w$GREEN ]\$ $NORMAL"
+    # live-config.sh + rootfs.sha256
+    [ -f "$SCRIPT_DIR/initramfs/live-config.sh" ] && \
+        cp "$SCRIPT_DIR/initramfs/live-config.sh" "$EXTRA_DIR/"
+    [ -f "$ROOTFS_HASH_FILE" ] && \
+        cp "$ROOTFS_HASH_FILE" "$EXTRA_DIR/rootfs.sha256"
 fi
 
-unset RED GREEN NORMAL
+# ----------------------------------------------------------
+# 4. Call mkinitramfs
+# ----------------------------------------------------------
+MKINITRAMFS=""
+for candidate in \
+    "$SCRIPT_DIR/../neonatox-mkinitramfs/src/mkinitramfs" \
+    /usr/sbin/mkinitramfs \
+    /usr/bin/mkinitramfs; do
+    if [ -x "$candidate" ]; then
+        MKINITRAMFS="$candidate"
+        break
+    fi
+done
 
-echo "GNU Neonatox @ $(uname -m)"
-	echo ""
-PROFILE
-    chmod 0644 "$INITRAMFS/etc/profile"
-
-    # --- Fake tools for nhopkg (meson, ninja, git) ---
-    for _fake in "$SCRIPT_DIR/initramfs/fake-"*; do
-        [ -f "$_fake" ] || continue
-        _name="${_fake##*/}"
-        _target="${INITRAMFS}/bin/${_name#fake-}"
-        install -m 0755 "$_fake" "$_target"
-        echo -e "${GREEN}[OK]${NC} Fake tool: ${_name#fake-}"
-    done
-
-    # --- udhcpc default script (needed by busybox udhcpc) ---
-    mkdir -p "$INITRAMFS/usr/share/udhcpc"
-    cat > "$INITRAMFS/usr/share/udhcpc/default.script" << 'UDHCPC'
-#!/bin/sh
-case "$1" in
-    bound|renew)
-        ifconfig $interface $ip netmask $subnet
-        [ -n "$router" ] && route add default gw $router
-        [ -n "$dns" ] && echo "nameserver $dns" > /etc/resolv.conf
-        ;;
-    deconfig)
-        ifconfig $interface 0.0.0.0
-        ;;
-esac
-UDHCPC
-    chmod 0755 "$INITRAMFS/usr/share/udhcpc/default.script"
-
-    # --- wifi-config.sh ---
-    install -m 0755 "$SCRIPT_DIR/initramfs/wifi-config.sh" "$INITRAMFS/wifi-config.sh"
-
-    # --- Netinstall fallback init (DEPRECATED, kept for v1.0) ---
-    install -m 0755 "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$INITRAMFS/netinstall-init.sh"
-    echo -e "${GREEN}[OK]${NC} netinstall tools ready"
-
-else
-    # --------------------------------------------------
-    # LIVE MODE: live-config + rootfs hash
-    # --------------------------------------------------
-    install -m 0755 "$SCRIPT_DIR/initramfs/live-config.sh" "$INITRAMFS/live-config.sh"
-    install -m 0644 "$ROOTFS_HASH_FILE" "$INITRAMFS/rootfs.sha256"
+if [ -z "$MKINITRAMFS" ]; then
+    echo -e "${RED}[ERROR]${NC} mkinitramfs not found"
+    echo "Expected at $SCRIPT_DIR/../neonatox-mkinitramfs/src/mkinitramfs"
+    echo "or installed system-wide (neonatox-mkinitramfs)"
+    exit 1
 fi
 
-# --- Unified init + lib + libexec (both modes) ---
-install -m 0755 "$SCRIPT_DIR/initramfs/init" "$INITRAMFS/init"
-cp -r "$SCRIPT_DIR/initramfs/lib" "$INITRAMFS/usr/"
-cp -r "$SCRIPT_DIR/initramfs/libexec" "$INITRAMFS/"
-chmod 0755 "$INITRAMFS/libexec"/*
-echo -e "${GREEN}[OK]${NC} unified init + lib phases ready"
+export EXTRA_DIR="$EXTRA_DIR"
 
+PROFILE="live"
+[ "$NETINSTALL_MODE" = true ] && PROFILE="netinstall"
 
-CURRENT_SECTION="initramfs packing"
+echo -e "${YELLOW}[INFO]${NC} Running mkinitramfs --profile $PROFILE..."
 
-echo -e "${YELLOW}[INFO]${NC} Packing initramfs..."
-( cd "$INITRAMFS" && find . -print | cpio -o -H newc 2>/dev/null | xz -T0 -f --extreme --check=crc32 ) > "$INITRAMFS_IMG" 2>/dev/null
+"$MKINITRAMFS" \
+    --profile "$PROFILE" \
+    --kernel "$KVER" \
+    --compress xz \
+    --xz-extreme \
+    --output "$INITRAMFS_IMG" \
+    --staging "$INITRAMFS_STAGING" \
+    --tools-dir "$SCRIPT_DIR/tools/output" \
+    --neonatox-dir "$SCRIPT_DIR/initramfs" \
+    --hooks-dir "$SCRIPT_DIR/initramfs/hooks"
+
 echo -e "${GREEN}[OK]${NC} initramfs ready..."
 
 

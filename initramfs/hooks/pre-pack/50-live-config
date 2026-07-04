@@ -1,0 +1,10 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+[ "$PROFILE" != "live" ] && exit 0
+
+[ -f "$EXTRA_DIR/live-config.sh" ] && install -m 0755 "$EXTRA_DIR/live-config.sh" "$WDIR/live-config.sh"
+[ -f "$EXTRA_DIR/rootfs.sha256" ]  && install -m 0644 "$EXTRA_DIR/rootfs.sha256"  "$WDIR/rootfs.sha256"
+
+exit 0

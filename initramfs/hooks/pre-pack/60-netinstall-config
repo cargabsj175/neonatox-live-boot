@@ -1,0 +1,53 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+[ "$PROFILE" != "netinstall" ] && exit 0
+
+# wifi-config.sh
+[ -f "$EXTRA_DIR/wifi-config.sh" ] && install -m 0755 "$EXTRA_DIR/wifi-config.sh" "$WDIR/wifi-config.sh"
+
+# netinstall-init.sh (DEPRECATED fallback)
+[ -f "$EXTRA_DIR/netinstall-init.sh" ] && install -m 0755 "$EXTRA_DIR/netinstall-init.sh" "$WDIR/netinstall-init.sh"
+
+# udhcpc default script
+mkdir -p "$WDIR/usr/share/udhcpc"
+cat > "$WDIR/usr/share/udhcpc/default.script" << 'UDHCPC'
+#!/bin/sh
+case "$1" in
+    bound|renew)
+        ifconfig $interface $ip netmask $subnet
+        [ -n "$router" ] && route add default gw $router
+        [ -n "$dns" ] && echo "nameserver $dns" > /etc/resolv.conf
+        ;;
+    deconfig)
+        ifconfig $interface 0.0.0.0
+        ;;
+esac
+UDHCPC
+chmod 0755 "$WDIR/usr/share/udhcpc/default.script"
+
+# Shell profile (ash/bash compatible)
+cat > "$WDIR/etc/profile" << 'PROFILE'
+NORMAL="\[\e[0m\]"
+RED="\[\e[1;31m\]"
+GREEN="\[\e[1;32m\]"
+if [[ $EUID == 0 ]] ; then
+  PS1="$RED\u [ $NORMAL\w$RED ]# $NORMAL"
+else
+  PS1="$GREEN\u [ $NORMAL\w$GREEN ]\$ $NORMAL"
+fi
+unset RED GREEN NORMAL
+echo "GNU Neonatox @ $(uname -m)"
+echo ""
+PROFILE
+chmod 0644 "$WDIR/etc/profile"
+
+# Fake tools for nhopkg
+for _fake in "$NEONATOX_DIR/fake-"*; do
+    [ -f "$_fake" ] || continue
+    _name="${_fake##*/}"
+    install -m 0755 "$_fake" "$WDIR/bin/${_name#fake-}"
+done
+
+exit 0

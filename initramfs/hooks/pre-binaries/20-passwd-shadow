@@ -1,0 +1,28 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+SHELL="/bin/sh"
+[ -x "$WDIR/usr/bin/bash" ] && SHELL="/bin/bash"
+
+ROOT_PASS_HASH=""
+if command -v openssl >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(openssl passwd -6 neonatox 2>/dev/null || true)
+fi
+if [ -z "$ROOT_PASS_HASH" ] && command -v python3 >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(python3 -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
+fi
+if [ -z "$ROOT_PASS_HASH" ] && command -v python >/dev/null 2>&1; then
+    ROOT_PASS_HASH=$(python -c 'import crypt; print(crypt.crypt("neonatox", crypt.mksalt(crypt.METHOD_SHA512)))' 2>/dev/null || true)
+fi
+
+cat > "$WDIR/etc/passwd" <<EOF
+root:x:0:0:root:/root:$SHELL
+EOF
+if [ -n "$ROOT_PASS_HASH" ]; then
+    cat > "$WDIR/etc/shadow" <<EOF
+root:$ROOT_PASS_HASH:19875:0:99999:7:::
+EOF
+    chmod 0600 "$WDIR/etc/shadow"
+fi
+exit 0

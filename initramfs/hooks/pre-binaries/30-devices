@@ -1,0 +1,13 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+[ -e "$WDIR/dev/zero"  ] || mknod -m 666 "$WDIR/dev/zero"  c 1 5
+[ -e "$WDIR/dev/tty"   ] || mknod -m 666 "$WDIR/dev/tty"   c 5 0
+[ -e "$WDIR/dev/tty0"  ] || mknod -m 622 "$WDIR/dev/tty0"  c 4 0
+[ -e "$WDIR/dev/tty1"  ] || mknod -m 622 "$WDIR/dev/tty1"  c 4 1
+[ -e "$WDIR/dev/tty2"  ] || mknod -m 622 "$WDIR/dev/tty2"  c 4 2
+[ -e "$WDIR/dev/tty3"  ] || mknod -m 622 "$WDIR/dev/tty3"  c 4 3
+[ -e "$WDIR/dev/tty4"  ] || mknod -m 622 "$WDIR/dev/tty4"  c 4 4
+
+exit 0

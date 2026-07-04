@@ -1,0 +1,24 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+cat > "$WDIR/usr/bin/reboot" << 'EOF'
+#!/bin/sh
+echo "Restarting..."
+sleep 1
+echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
+sync
+echo b > /proc/sysrq-trigger
+EOF
+
+cat > "$WDIR/usr/bin/poweroff" << 'EOF'
+#!/bin/sh
+echo "Shutting down..."
+sleep 1
+echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
+sync
+echo o > /proc/sysrq-trigger
+EOF
+
+chmod 0755 "$WDIR/usr/bin/reboot" "$WDIR/usr/bin/poweroff"
+exit 0

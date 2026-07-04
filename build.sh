@@ -291,9 +291,29 @@ echo -e "${GREEN}[OK]${NC} Using excludes from $EXCLUDES_FILE"
 
 echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..."
 
-# Create pseudo file to recreate empty home/root dirs with original permissions
+# Create pseudo file to recreate home/root dirs with original permissions
+# and populate them with /etc/skel contents
 PSEUDO_FILE=$(mktemp /tmp/squashfs-pseudo.XXXXXXXXXX)
 trap 'rm -f "$PSEUDO_FILE"' EXIT
+
+populate_skel() {
+  local target="$1"
+  local uid="$2"
+  local gid="$3"
+  [ -d /etc/skel ] || return 0
+  find /etc/skel -mindepth 1 | while read -r src; do
+    rel="${src#/etc/skel}"
+    dest="$target$rel"
+    if [ -d "$src" ]; then
+      echo "$dest d $(stat -c "%a" "$src") $uid $gid" >> "$PSEUDO_FILE"
+    elif [ -f "$src" ]; then
+      echo "$dest f $(stat -c "%a" "$src") $uid $gid $src" >> "$PSEUDO_FILE"
+    elif [ -L "$src" ]; then
+      link=$(readlink "$src")
+      echo "$dest l $link" >> "$PSEUDO_FILE"
+    fi
+  done
+}
 
 for dir in /home /root; do
   [ -d "$dir" ] || continue
@@ -304,6 +324,7 @@ for dir in /home /root; do
     uid=$(stat -c "%u" "$full")
     gid=$(stat -c "%g" "$full")
     echo "$full d $mode $uid $gid" >> "$PSEUDO_FILE"
+    populate_skel "$full" "$uid" "$gid"
   done
 done
 

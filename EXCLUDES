@@ -1,5 +1,6 @@
 /boot/*
 /opt/*
+/sources
 /proc
 /sys
 /dev

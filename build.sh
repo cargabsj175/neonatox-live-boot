@@ -290,7 +290,7 @@ fi
 echo -e "${GREEN}[OK]${NC} Using excludes from $EXCLUDES_FILE"
 
 echo -e "${YELLOW}[INFO]${NC} Creating squashfs rootfs..." 
-mksquashfs / "$SQUASHFS" -e $(grep -v '^\s*$' "$EXCLUDES_FILE") -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
+mksquashfs / "$SQUASHFS" -ef "$EXCLUDES_FILE" -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."

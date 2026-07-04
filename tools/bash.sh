@@ -47,7 +47,7 @@ echo -e "${YELLOW}[INFO]${NC} Configuring static Bash..."
 
 [ -f Makefile ] && make distclean || true
 
-CC="$MUSLGCC" CFLAGS="-static -Os -s" LDFLAGS="-static" \
+CC="$MUSLGCC" CFLAGS="-static -Os -s -std=gnu11 -fcommon" LDFLAGS="-static" \
 ./configure   --host=x86_64-linux-musl \
               --enable-static-link \
               --without-bash-malloc \

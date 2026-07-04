@@ -84,6 +84,7 @@ echo -e "${YELLOW}[INFO]${NC} Configuring wpa_supplicant (minimal netinstall)...
 
 cat > .config << 'CONFIG_EOF'
 CONFIG_DRIVER_NL80211=y
+CONFIG_LIBNL32=y
 CONFIG_DRIVER_WEXT=y
 CONFIG_TLS=internal
 CONFIG_INTERNAL_LIBTOMMATH=y

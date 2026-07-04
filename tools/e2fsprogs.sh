@@ -46,6 +46,14 @@ fi
 
 cd "e2fsprogs-${VERSION}"
 
+echo -e "${YELLOW}[INFO]${NC} Patching for GCC 14+ compatibility..."
+
+# GCC 14 treats implicit function declarations as error; my_llseek undeclared
+# on x86_64 because the SIZEOF_LONG==SIZEOF_LONG_LONG branch only defines
+# "llseek" but forgets to alias my_llseek too.
+sed -i 's|#define llseek lseek|#define llseek lseek\n#define my_llseek llseek|' \
+    lib/blkid/llseek.c
+
 echo -e "${YELLOW}[INFO]${NC} Configuring static e2fsprogs (minimal for initramfs)..."
 
 [ -f Makefile ] && make distclean || true
@@ -60,7 +68,7 @@ export BLKID_LIBS=""
 export BLKID_CFLAGS=""
 
 CC="$MUSLGCC" \
-CFLAGS="-static -Os -s -fno-stack-protector -U_FORTIFY_SOURCE" \
+CFLAGS="-static -Os -s -std=gnu11 -fno-stack-protector -U_FORTIFY_SOURCE" \
 LDFLAGS="-static" \
 ./configure \
     --host=x86_64-linux-musl \

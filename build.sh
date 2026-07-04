@@ -537,7 +537,8 @@ CURRENT_SECTION="grub configuration"
 
 echo -e "${YELLOW}[INFO]${NC} Generating GRUB config..."
 cp /usr/share/grub/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
-    || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2"
+    || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
+    || echo -e "${YELLOW}[WARN]${NC} unicode.pf2 not found (fonts disabled, non-fatal)"
 
 cat > "$GRUB_DIR/grub.cfg" <<EOF
 set default=0

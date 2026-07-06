@@ -62,9 +62,18 @@ wpa_start() {
 
 wpa_scan() {
     local iface="$1"
-    wpa_cli -i "$iface" scan >/dev/null 2>&1
-    sleep 3
-    wpa_cli -i "$iface" scan_results 2>/dev/null | tail -n +2
+    # Send scan; show output to user
+    wpa_cli -i "$iface" scan 2>&1
+    # Wait progressively with dots
+    local waited=0
+    while [ "$waited" -lt 7 ]; do
+        echo -n "." >&2
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo "" >&2
+    # Only output lines that start with a BSSID (MAC)
+    wpa_cli -i "$iface" scan_results 2>/dev/null | grep -E '^[0-9a-f]{2}(:[0-9a-f]{2}){5}[[:space:]]'
 }
 
 # --- modes ------------------------------------------------------------------
@@ -81,11 +90,11 @@ cmd_scan() {
 
     wpa_stop "$iface"
     wpa_start "$iface" || die "Failed to start wpa_supplicant"
-    info "Scanning..."
+    echo -e "  ${YELLOW}Scanning (7s)${NC}"
     wpa_scan "$iface" | while IFS=$'\t' read -r bssid freq sig flags ssid; do
-        [ -z "$ssid" ] && continue
         echo "$sig dBm  $ssid"
     done
+    echo -e "  ${GREEN}Done${NC}"
     wpa_stop "$iface"
 }
 
@@ -169,19 +178,15 @@ cmd_interactive() {
     wpa_start "$iface" || die "Failed to start wpa_supplicant"
 
     # --- Scan ---
-    echo -e "${YELLOW}Scanning for networks...${NC}"
-    local scan_out
-    scan_out=$(wpa_scan "$iface")
-    local ssid_count=0 ssids=""
-    echo "$scan_out" | while IFS=$'\t' read -r bssid freq sig flags ssid; do
+    echo -e "  ${YELLOW}Scanning (7s)${NC}"
+    # Collect unique SSIDs (one per line, skip duplicates)
+    local ssids
+    ssids=$(wpa_scan "$iface" | while IFS=$'\t' read -r bssid freq sig flags ssid; do
         [ -z "$ssid" ] && continue
-        # Skip if already seen
-        echo "$ssids" | grep -q "^$ssid$" && continue
-        ssids="$ssids\n$ssid"
-    done
-
-    ssid_count=0
-    for _ in $ssids; do ssid_count=$((ssid_count + 1)); done
+        echo "$ssid"
+    done | sort -u)
+    local ssid_count=0
+    [ -n "$ssids" ] && for _ in $ssids; do ssid_count=$((ssid_count + 1)); done
 
     [ "$ssid_count" -eq 0 ] && { wpa_stop "$iface"; die "No networks found (try again later)"; }
 
@@ -202,8 +207,7 @@ cmd_interactive() {
         [ "$chosen" -ge 1 ] && [ "$chosen" -le "$ssid_count" ] && break
     done
 
-    local target_ssid=""
-    local j=1
+    local target_ssid="" j=1
     for s in $ssids; do
         [ "$j" -eq "$chosen" ] && { target_ssid="$s"; break; }
         j=$((j + 1))

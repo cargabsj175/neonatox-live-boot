@@ -493,12 +493,17 @@ fi
 EXTRA_DIR="$WORKDIR/extra"
 mkdir -p "$EXTRA_DIR"
 
+# wifi-wizard (all modes), disk-wizard (netinstall), wifi-config.sh (netinstall fallback)
+[ -f "$SCRIPT_DIR/initramfs/wifi-wizard.sh" ] && \
+    cp "$SCRIPT_DIR/initramfs/wifi-wizard.sh" "$EXTRA_DIR/"
+
 if [ "$NETINSTALL_MODE" = true ]; then
-    # wifi-config.sh, netinstall-init.sh
     [ -f "$SCRIPT_DIR/initramfs/wifi-config.sh" ] && \
         cp "$SCRIPT_DIR/initramfs/wifi-config.sh" "$EXTRA_DIR/"
     [ -f "$SCRIPT_DIR/initramfs/netinstall-init.sh" ] && \
         cp "$SCRIPT_DIR/initramfs/netinstall-init.sh" "$EXTRA_DIR/"
+    [ -f "$SCRIPT_DIR/initramfs/disk-wizard.sh" ] && \
+        cp "$SCRIPT_DIR/initramfs/disk-wizard.sh" "$EXTRA_DIR/"
 
     # nhopkg (clone + meson install)
     echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."

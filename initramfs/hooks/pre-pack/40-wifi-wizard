@@ -1,0 +1,11 @@
+#!/bin/sh
+WDIR="$1"
+[ -n "$WDIR" ] || exit 1
+
+# wifi-wizard — available in all initramfs modes
+# Tools (wpa_supplicant, wpa_cli) are installed only if
+# PROFILE_REQUIRES includes them (netinstall).
+# wifi-wizard shows a clear error if tools are missing.
+[ -f "$EXTRA_DIR/wifi-wizard.sh" ] && install -m 0755 "$EXTRA_DIR/wifi-wizard.sh" "$WDIR/usr/bin/wifi-wizard"
+
+exit 0

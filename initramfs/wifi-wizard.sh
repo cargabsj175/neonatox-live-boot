@@ -25,6 +25,33 @@ check_deps() {
     [ -n "$miss" ] && die "Missing:${miss}"
 }
 
+ensure_udhcpc_script() {
+    local script="/usr/share/udhcpc/default.script"
+    [ -f "$script" ] && return 0
+    mkdir -p "${script%/*}"
+    cat > "$script" << 'UDHCPC'
+#!/bin/sh
+case "$1" in
+    deconfig)
+        ip addr flush dev "$interface" 2>/dev/null
+        ip link set "$interface" up 2>/dev/null
+        ;;
+    bound|renew)
+        ip addr add "$ip/${mask:-24}" dev "$interface"
+        [ -n "$router" ] && for r in $router; do
+            ip route add default via "$r" dev "$interface" 2>/dev/null || true
+        done
+        echo "nameserver 1.1.1.1" > /etc/resolv.conf
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+        ;;
+    nak)
+        ip addr flush dev "$interface" 2>/dev/null
+        ;;
+esac
+UDHCPC
+    chmod 0755 "$script"
+}
+
 find_ifaces() {
     local found=0
     for iface in /sys/class/net/*; do
@@ -104,6 +131,7 @@ cmd_connect() {
     [ -z "$ssid" ] && die "Usage: wifi-wizard --connect SSID PSK [IFACE]"
 
     check_deps
+    ensure_udhcpc_script
     [ -z "$iface" ] && {
         ifaces=$(find_ifaces) || die "No WiFi interfaces found"
         iface=$(echo "$ifaces" | head -1)
@@ -139,6 +167,7 @@ cmd_connect() {
 
 cmd_interactive() {
     check_deps
+    ensure_udhcpc_script
 
     # --- Find interface ---
     ifaces=$(find_ifaces) || die "No WiFi interfaces found"

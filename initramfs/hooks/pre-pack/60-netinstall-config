@@ -18,13 +18,20 @@ mkdir -p "$WDIR/usr/share/udhcpc"
 cat > "$WDIR/usr/share/udhcpc/default.script" << 'UDHCPC'
 #!/bin/sh
 case "$1" in
-    bound|renew)
-        ifconfig $interface $ip netmask $subnet
-        [ -n "$router" ] && route add default gw $router
-        [ -n "$dns" ] && echo "nameserver $dns" > /etc/resolv.conf
-        ;;
     deconfig)
-        ifconfig $interface 0.0.0.0
+        ip addr flush dev "$interface" 2>/dev/null
+        ip link set "$interface" up 2>/dev/null
+        ;;
+    bound|renew)
+        ip addr add "$ip/${mask:-24}" dev "$interface"
+        [ -n "$router" ] && for r in $router; do
+            ip route add default via "$r" dev "$interface" 2>/dev/null || true
+        done
+        echo "nameserver 1.1.1.1" > /etc/resolv.conf
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+        ;;
+    nak)
+        ip addr flush dev "$interface" 2>/dev/null
         ;;
 esac
 UDHCPC

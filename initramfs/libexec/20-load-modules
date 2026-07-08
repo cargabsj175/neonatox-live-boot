@@ -9,7 +9,7 @@ case "${1:-live}" in
         WIFI="ath5k ath9k"
         ;;
     *)
-        FILESYSTEMS="iso9660 squashfs overlay vfat fat exfat ntfs3 ext2"
+        FILESYSTEMS="isofs squashfs overlay vfat fat exfat ntfs3 ext2"
         NET=""; WIFI=""
         ;;
 esac

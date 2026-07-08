@@ -329,7 +329,7 @@ for dir in /home /root; do
 done
 
 mksquashfs / "$SQUASHFS" -ef "$EXCLUDES_FILE" -pf "$PSEUDO_FILE" \
-  -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory
+  -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory -no-xattrs
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."

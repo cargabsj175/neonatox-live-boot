@@ -589,9 +589,34 @@ echo -e "${GREEN}[OK]${NC} initramfs ready..."
 CURRENT_SECTION="grub configuration"
 
 echo -e "${YELLOW}[INFO]${NC} Generating GRUB config..."
-cp /usr/share/grub/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
-    || cp /usr/share/grub/*/unicode.pf2 "$GRUB_DIR/font.pf2" 2>/dev/null \
-    || echo -e "${YELLOW}[WARN]${NC} unicode.pf2 not found (fonts disabled, non-fatal)"
+# Buscar .pf2 ya existente en ubicaciones comunes
+unicode_pf2=""
+for dir in /usr/share/grub /usr/share/grub/* /usr/share/fonts; do
+    if [ -f "$dir/unicode.pf2" ]; then
+        unicode_pf2="$dir/unicode.pf2"
+        break
+    fi
+done
+
+if [ -n "$unicode_pf2" ] && cp "$unicode_pf2" "$GRUB_DIR/font.pf2" 2>/dev/null; then
+    printf "%s\n" "${GREEN}[OK]${NC} Found existing unicode.pf2"
+else
+    # Si no hay .pf2, buscar .pcf y convertir
+    if [ -f "/usr/share/fonts/unifont/unifont.pcf" ]; then
+        if command -v grub-mkfont >/dev/null 2>&1; then
+            printf "%s\n" "${BLUE}[INFO]${NC} Converting unifont.pcf to pf2..."
+            if grub-mkfont /usr/share/fonts/unifont/unifont.pcf -o "$GRUB_DIR/font.pf2" 2>/dev/null; then
+                printf "%s\n" "${GREEN}[OK]${NC} Font converted successfully"
+            else
+                printf "%s\n" "${RED}[ERROR]${NC} Conversion failed"
+            fi
+        else
+            printf "%s\n" "${YELLOW}[WARN]${NC} grub-mkfont not installed. Install grub-common"
+        fi
+    else
+        printf "%s\n" "${YELLOW}[WARN]${NC} No font found (non-fatal)"
+    fi
+fi
 
 cat > "$GRUB_DIR/grub.cfg" <<EOF
 set default=0
@@ -602,16 +627,20 @@ set gfxmode=1024x768,800x600,auto
 set gfxpayload=keep
 
 insmod all_video
-insmod gfxterm
 insmod png
 insmod vbe
 insmod video_bochs
 insmod video_cirrus
 
-loadfont /boot/grub/font.pf2
-terminal_output gfxterm
-
-background_image /boot/grub/theme/background.png
+# Si se pudo copiar la fuente unicode.pf2 usamos interfaz gráfica
+# Si no, se cae a consola VGA para evitar los @@@@@@@ en pantalla
+# (la fuente no se genera en musl porque grub-mkfont necesita freetype + unifont.pcf)
+if [ -f /boot/grub/font.pf2 ]; then
+  insmod gfxterm
+  loadfont /boot/grub/font.pf2
+  terminal_output gfxterm
+  background_image /boot/grub/theme/background.png
+fi
 
 if [ "$NETINSTALL_MODE" = true ]; then
 

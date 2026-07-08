@@ -87,11 +87,6 @@ scan_devices() {
                 ls "$ISO_MNT" 2>/dev/null | head -5 | while read -r f; do
                     echo -e "  ${BLUE}[SCAN]${NC}   $ISO_MNT/$f"
                 done
-            elif mount -t iso9660 -o ro "$DEV" "$ISO_MNT" 2>/dev/null; then
-                echo -e "  ${GREEN}[SCAN]${NC} $DEV mounted (iso9660)"
-                ls "$ISO_MNT" 2>/dev/null | head -5 | while read -r f; do
-                    echo -e "  ${BLUE}[SCAN]${NC}   $ISO_MNT/$f"
-                done
             else
                 echo -e "  ${RED}[SCAN]${NC} $DEV mount failed"
                 continue

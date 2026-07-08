@@ -68,18 +68,29 @@ detect_ventoy() {
 
 scan_devices() {
     echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
+    # Ensure ISO_MNT is free
+    umount "$ISO_MNT" 2>/dev/null || umount -l "$ISO_MNT" 2>/dev/null || true
     for attempt in 1 2 3; do
         echo -e "  ${YELLOW}[SCAN]${NC} attempt: $attempt/3"
-        [ $attempt -eq 1 ] && sleep 1.5
+        [ $attempt -eq 1 ] && sleep 3
         for host in /sys/class/scsi_host/host*; do
             echo "- - -" > "$host/scan" 2>/dev/null || true
         done
-        sleep 1
+        sleep 2
         mdev -s
+        sleep 1
         for DEV in /dev/sr* /dev/nvme*n*p* /dev/nvme*n /dev/sd* /dev/hd* /dev/mmcblk*p* /dev/mmcblk*; do
             [ -e "$DEV" ] || continue
             echo -e "  ${YELLOW}[SCAN]${NC} device: $DEV"
-            mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null || continue
+            if mount -o ro "$DEV" "$ISO_MNT" 2>/dev/null; then
+                echo -e "  ${GREEN}[SCAN]${NC} $DEV mounted OK"
+                ls "$ISO_MNT" 2>/dev/null | head -5 | while read -r f; do
+                    echo -e "  ${BLUE}[SCAN]${NC}   $ISO_MNT/$f"
+                done
+            else
+                echo -e "  ${RED}[SCAN]${NC} $DEV mount failed"
+                continue
+            fi
             if [ -f "$ISO_MNT/rootfs.squashfs" ]; then
                 if [ ! -f "$ISO_MNT/rootfs.sha256" ]; then
                     echo -e "${RED}[ERROR]${NC} rootfs.sha256 missing in ISO"

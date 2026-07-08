@@ -1,5 +1,5 @@
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
 
 if [ "${1:-live}" = "disk" ]; then
     mount -t devtmpfs devtmpfs /dev 2>/dev/null || true

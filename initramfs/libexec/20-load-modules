@@ -23,10 +23,21 @@ LEGACY="ata_piix pata_generic"
 NVME="nvme nvme_core"
 HID="hid-generic usbhid i8042 atkbd libps2"
 
-for m in $FILESYSTEMS $MEDIA $LEGACY $NVME $HID $NET $WIFI; do
+echo -e "${YELLOW}[MOD]${NC} loading filesystems: $FILESYSTEMS"
+for m in $FILESYSTEMS; do
+    modprobe $m 2>/dev/null && echo -e "  ${GREEN}[MOD]${NC} $m OK" || echo -e "  ${RED}[MOD]${NC} $m FAIL"
+done
+
+echo -e "${YELLOW}[MOD]${NC} loading media: $MEDIA"
+for m in $MEDIA $LEGACY $NVME; do
+    modprobe $m 2>/dev/null && echo -e "  ${GREEN}[MOD]${NC} $m OK" || echo -e "  ${RED}[MOD]${NC} $m FAIL"
+done
+
+for m in $HID $NET $WIFI; do
     modprobe $m 2>/dev/null
 done
 
 sleep 1
 mdev -s
 echo -e "${GREEN}[OK]${NC} modules loaded"
+[ "$initrd_debug" != "0" ] && lsmod 2>/dev/null | head -25

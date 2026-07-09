@@ -68,6 +68,7 @@ detect_ventoy() {
 
 scan_devices() {
     echo -e "${YELLOW}[INFO]${NC} scanning for boot media..."
+    mkdir -p /mnt/iso /mnt/iso_test
     # Ensure ISO_MNT is free
     umount "$ISO_MNT" 2>/dev/null || umount -l "$ISO_MNT" 2>/dev/null || true
     for attempt in 1 2 3; do

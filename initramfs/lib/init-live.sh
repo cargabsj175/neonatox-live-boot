@@ -221,12 +221,12 @@ setup_newroot() {
     fi
     mkdir -p /mnt/newroot/etc
     [ -f /mnt/newroot/etc/machine-id ] || touch /mnt/newroot/etc/machine-id
-    cat > /mnt/newroot/etc/fstab <<EOF
-proc  /proc  proc  defaults  0 0
-sysfs /sys   sysfs defaults  0 0
-devpts /dev/pts devpts defaults  0 0
-tmpfs /run   tmpfs defaults  0 0
-EOF
+    cat > /mnt/newroot/etc/fstab <<-EOF
+	proc  /proc  proc  defaults  0 0
+	sysfs /sys   sysfs defaults  0 0
+	devpts /dev/pts devpts defaults  0 0
+	tmpfs /run   tmpfs defaults  0 0
+	EOF
     if [ -x /mnt/newroot/lib/systemd/systemd ]; then
         INIT="/lib/systemd/systemd"
     elif [ -x /mnt/newroot/sbin/init ]; then

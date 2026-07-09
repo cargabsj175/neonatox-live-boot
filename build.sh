@@ -305,12 +305,13 @@ populate_skel() {
     rel="${src#/etc/skel}"
     dest="$target$rel"
     if [ -d "$src" ]; then
-      echo "$dest d $(stat -c "%a" "$src") $uid $gid" >> "$PSEUDO_FILE"
+      echo "${dest#/} d $(stat -c "%a" "$src") $uid $gid" >> "$PSEUDO_FILE"
     elif [ -f "$src" ]; then
-      echo "$dest f $(stat -c "%a" "$src") $uid $gid $src" >> "$PSEUDO_FILE"
+      # f type executes a command; use cat to source the file content
+      echo "${dest#/} f $(stat -c "%a" "$src") $uid $gid cat $src" >> "$PSEUDO_FILE"
     elif [ -L "$src" ]; then
       link=$(readlink "$src")
-      echo "$dest l $link" >> "$PSEUDO_FILE"
+      echo "${dest#/} l $link" >> "$PSEUDO_FILE"
     fi
   done
 }
@@ -323,13 +324,13 @@ for dir in /home /root; do
     mode=$(stat -c "%a" "$full")
     uid=$(stat -c "%u" "$full")
     gid=$(stat -c "%g" "$full")
-    echo "$full d $mode $uid $gid" >> "$PSEUDO_FILE"
+    echo "${full#/} d $mode $uid $gid" >> "$PSEUDO_FILE"
     populate_skel "$full" "$uid" "$gid"
   done
 done
 
 mksquashfs / "$SQUASHFS" -ef "$EXCLUDES_FILE" -pf "$PSEUDO_FILE" \
-  -comp xz -b 1024K -Xbcj x86 -always-use-fragments -keep-as-directory -no-xattrs
+  -comp xz -b 1024K -Xbcj x86 -always-use-fragments -no-xattrs -wildcards
 echo -e "${GREEN}[OK]${NC} Squashfs rootfs created"    
 
 echo -e "${YELLOW}[INFO]${NC} generating rootfs checksum..."

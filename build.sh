@@ -96,6 +96,7 @@ WITHOUT_MAKE_ISO=false
 MAKE_ISO_ONLY=false
 DO_CLEAN=false
 DO_CLEAN_ALL=false
+COMPRESSION="zstd"
 
 show_help() {
     cat <<EOF
@@ -107,6 +108,7 @@ Opciones:
   --make-iso               Solo empaquetar ISO desde artefactos existentes
   --clean                  Limpiar directorio de trabajo
   --clean-all              Limpiar workdir, fuentes de tools e ISOs generadas
+  --compress FORMAT        Compresión initramfs: zstd (default, rápido) o xz (lento, menor tamaño)
   --version                Muestra la version
   --help, -h               Mostrar esta ayuda
 
@@ -125,6 +127,7 @@ while [[ $# -gt 0 ]]; do
         --make-iso) MAKE_ISO_ONLY=true ;;
         --clean) DO_CLEAN=true ;;
         --clean-all) DO_CLEAN_ALL=true ;;
+        --compress) COMPRESSION="$2"; shift ;;
         --version|-v) show_ver; exit 0 ;;
         --help|-h) show_help; exit 0 ;;
         *) echo -e "${RED}[ERROR]${NC} Argumento desconocido: $1" >&2; show_help; exit 1 ;;
@@ -156,6 +159,13 @@ fi
 if [ "$NETINSTALL_MODE" = true ]; then
     echo -e "${YELLOW}[INFO]${NC} Modo netinstall activado"
 fi
+
+case "$COMPRESSION" in
+    zst|zstd) COMPRESSION="zstd" ;;
+    xz) ;;
+    gz) ;;
+    *) echo -e "${RED}[ERROR]${NC} Compresión no soportada: $COMPRESSION (zstd, xz, gz)" >&2; exit 1 ;;
+esac
 
 # ----------------------------------------------------------
 # PRE-CHECKS
@@ -570,16 +580,19 @@ PROFILE="live"
 
 echo -e "${YELLOW}[INFO]${NC} Running mkinitramfs --profile $PROFILE..."
 
-"$MKINITRAMFS" \
-    --profile "$PROFILE" \
-    --kernel "$KVER" \
-    --compress xz \
-    --xz-extreme \
-    --output "$INITRAMFS_IMG" \
-    --staging "$INITRAMFS_STAGING" \
-    --tools-dir "$SCRIPT_DIR/tools/output" \
-    --neonatox-dir "$SCRIPT_DIR/initramfs" \
+MKINITRAMFS_ARGS=(
+    --profile "$PROFILE"
+    --kernel "$KVER"
+    --compress "$COMPRESSION"
+    --output "$INITRAMFS_IMG"
+    --staging "$INITRAMFS_STAGING"
+    --tools-dir "$SCRIPT_DIR/tools/output"
+    --neonatox-dir "$SCRIPT_DIR/initramfs"
     --hooks-dir "$SCRIPT_DIR/initramfs/hooks"
+)
+[ "$COMPRESSION" = xz ] && MKINITRAMFS_ARGS+=(--xz-extreme)
+
+"$MKINITRAMFS" "${MKINITRAMFS_ARGS[@]}"
 
 echo -e "${GREEN}[OK]${NC} initramfs ready..."
 

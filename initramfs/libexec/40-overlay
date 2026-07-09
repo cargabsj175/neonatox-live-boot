@@ -1,12 +1,12 @@
 [ "${1:-live}" != "live" ] && return 0
 
-setup_overlay || return 1
-mount_squashfs || return 1
+setup_overlay || { echo "[40] setup_overlay FAILED"; return 1; }
+mount_squashfs || { echo "[40] mount_squashfs FAILED"; return 1; }
 
 [ "$initrd_debug" = "2" ] && debug_shell 2 "After zram, scan & squashfs"
 
-mount_overlay || return 1
+mount_overlay || { echo "[40] mount_overlay FAILED"; return 1; }
 run_live_config
-setup_newroot || return 1
+setup_newroot || { echo "[40] setup_newroot FAILED"; return 1; }
 
 [ "$initrd_debug" = "3" ] && debug_shell 3 "After overlay and new root config"

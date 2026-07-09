@@ -219,10 +219,8 @@ setup_newroot() {
         mount --bind /mnt/iso /mnt/newroot/mnt/iso
         [ -d /mnt/iso/boot ] && mount --bind /mnt/iso/boot /mnt/newroot/boot
     fi
-    if [ -x /mnt/newroot/lib/systemd/systemd ]; then
-        mkdir -p /mnt/newroot/etc
-        [ -f /mnt/newroot/etc/machine-id ] || touch /mnt/newroot/etc/machine-id
-    fi
+    mkdir -p /mnt/newroot/etc
+    [ -f /mnt/newroot/etc/machine-id ] || touch /mnt/newroot/etc/machine-id
     cat > /mnt/newroot/etc/fstab <<EOF
 proc  /proc  proc  defaults  0 0
 sysfs /sys   sysfs defaults  0 0

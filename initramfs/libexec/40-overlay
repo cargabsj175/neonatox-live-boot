@@ -3,10 +3,10 @@
 setup_overlay || return 1
 mount_squashfs || return 1
 
-[ "$initrd_debug" = "2" ] && debug_shell 2 "After zram, scan & squashfs"
+[ "$initrd_debug" = "2" ] && debug_shell 2 "After zram, scan & squashfs" || true
 
 mount_overlay || return 1
 run_live_config
 setup_newroot || return 1
 
-[ "$initrd_debug" = "3" ] && debug_shell 3 "After overlay and new root config"
+[ "$initrd_debug" = "3" ] && debug_shell 3 "After overlay and new root config" || true

@@ -650,6 +650,11 @@ menuentry "${ISO_NAME%-live} Net Install" {
     initrd /boot/initramfs.img
 }
 
+menuentry "${ISO_NAME%-live} Net Install (Failsafe graphics)" {
+    linux /boot/${K_IMG_NAME} quiet netinstall=1 loglevel=3 nomodeset vga=normal
+    initrd /boot/initramfs.img
+}
+
 menuentry "${ISO_NAME%-live} Net Install (Debug)" {
     linux /boot/${K_IMG_NAME} netinstall=1 debug=1 loglevel=7
     initrd /boot/initramfs.img

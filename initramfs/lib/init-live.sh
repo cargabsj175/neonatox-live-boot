@@ -205,19 +205,19 @@ run_live_config() {
 
 setup_newroot() {
     mkdir -p /mnt/newroot/proc /mnt/newroot/sys /mnt/newroot/dev /mnt/newroot/run
-    mount -t proc  proc  /mnt/newroot/proc
-    mount -t sysfs sysfs /mnt/newroot/sys
-    mount -t devtmpfs devtmpfs /mnt/newroot/dev
+    mount -t proc  proc  /mnt/newroot/proc || echo "[WARN] proc mount"
+    mount -t sysfs sysfs /mnt/newroot/sys || echo "[WARN] sysfs mount"
+    mount -t devtmpfs devtmpfs /mnt/newroot/dev || echo "[WARN] devtmpfs mount"
     mkdir -p /mnt/newroot/dev/pts
-    mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts
-    mount -t tmpfs tmpfs /mnt/newroot/run
+    mount -t devpts devpts -o gid=5,mode=0620 /mnt/newroot/dev/pts || echo "[WARN] devpts mount"
+    mount -t tmpfs tmpfs /mnt/newroot/run || echo "[WARN] tmpfs mount"
     mkdir -p /mnt/newroot/mnt/iso /mnt/newroot/boot
     if [ "$VENTOY_MODE" = "1" ]; then
-        mount --bind /mnt/iso_test /mnt/newroot/mnt/iso
-        [ -d /mnt/iso_test/boot ] && mount --bind /mnt/iso_test/boot /mnt/newroot/boot
+        mount --bind /mnt/iso_test /mnt/newroot/mnt/iso || echo "[WARN] bind iso_test"
+        [ -d /mnt/iso_test/boot ] && mount --bind /mnt/iso_test/boot /mnt/newroot/boot || echo "[WARN] bind boot_test"
     else
-        mount --bind /mnt/iso /mnt/newroot/mnt/iso
-        [ -d /mnt/iso/boot ] && mount --bind /mnt/iso/boot /mnt/newroot/boot
+        mount --bind /mnt/iso /mnt/newroot/mnt/iso || echo "[WARN] bind iso"
+        [ -d /mnt/iso/boot ] && mount --bind /mnt/iso/boot /mnt/newroot/boot || echo "[WARN] bind boot"
     fi
     mkdir -p /mnt/newroot/etc
     [ -f /mnt/newroot/etc/machine-id ] || touch /mnt/newroot/etc/machine-id
@@ -229,10 +229,14 @@ setup_newroot() {
 	EOF
     if [ -x /mnt/newroot/lib/systemd/systemd ]; then
         INIT="/lib/systemd/systemd"
+        echo "[OK] init = ${INIT##*/}"
     elif [ -x /mnt/newroot/sbin/init ]; then
         INIT="/sbin/init"
+        echo "[OK] init = ${INIT##*/}"
     else
         echo -e "${RED}[FATAL]${NC} no init found in new root"
+        ls /mnt/newroot/sbin/ 2>/dev/null | head
+        ls /mnt/newroot/lib/systemd/ 2>/dev/null | head
         return 1
     fi
 }

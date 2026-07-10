@@ -109,6 +109,7 @@ Opciones:
   --clean                  Limpiar directorio de trabajo
   --clean-all              Limpiar workdir, fuentes de tools e ISOs generadas
   --compress FORMAT        Compresión initramfs: zstd (default, rápido) o xz (lento, menor tamaño)
+  --decompress-kernel-modules  Descomprimir .ko.zst (para busybox modprobe que no soporta módulos comprimidos)
   --version                Muestra la version
   --help, -h               Mostrar esta ayuda
 
@@ -128,6 +129,7 @@ while [[ $# -gt 0 ]]; do
         --clean) DO_CLEAN=true ;;
         --clean-all) DO_CLEAN_ALL=true ;;
         --compress) COMPRESSION="$2"; shift ;;
+        --decompress-kernel-modules) DECOMPRESS_MODULES=true ;;
         --version|-v) show_ver; exit 0 ;;
         --help|-h) show_help; exit 0 ;;
         *) echo -e "${RED}[ERROR]${NC} Argumento desconocido: $1" >&2; show_help; exit 1 ;;
@@ -591,6 +593,7 @@ MKINITRAMFS_ARGS=(
     --hooks-dir "$SCRIPT_DIR/initramfs/hooks"
 )
 [ "$COMPRESSION" = xz ] && MKINITRAMFS_ARGS+=(--xz-extreme)
+[ "$DECOMPRESS_MODULES" = true ] && MKINITRAMFS_ARGS+=(--decompress-kernel-modules)
 
 "$MKINITRAMFS" "${MKINITRAMFS_ARGS[@]}"
 

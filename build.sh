@@ -613,22 +613,22 @@ for dir in /usr/share/grub /usr/share/grub/* /usr/share/fonts; do
 done
 
 if [ -n "$unicode_pf2" ] && cp "$unicode_pf2" "$GRUB_DIR/font.pf2" 2>/dev/null; then
-    printf "%s\n" "${GREEN}[OK]${NC} Found existing unicode.pf2"
+    echo -e "${GREEN}[OK]${NC} Found existing unicode.pf2"
 else
     # Si no hay .pf2, buscar .pcf y convertir
     if [ -f "/usr/share/fonts/unifont/unifont.pcf" ]; then
         if command -v grub-mkfont >/dev/null 2>&1; then
-            printf "%s\n" "${BLUE}[INFO]${NC} Converting unifont.pcf to pf2..."
+            echo -e "${BLUE}[INFO]${NC} Converting unifont.pcf to pf2..."
             if grub-mkfont /usr/share/fonts/unifont/unifont.pcf -o "$GRUB_DIR/font.pf2" 2>/dev/null; then
-                printf "%s\n" "${GREEN}[OK]${NC} Font converted successfully"
+                echo -e "${GREEN}[OK]${NC} Font converted successfully"
             else
-                printf "%s\n" "${RED}[ERROR]${NC} Conversion failed"
+                echo -e "${RED}[ERROR]${NC} Conversion failed"
             fi
         else
-            printf "%s\n" "${YELLOW}[WARN]${NC} grub-mkfont not installed. Install grub-common"
+            echo -e "${YELLOW}[WARN]${NC} grub-mkfont not installed. Install grub-common"
         fi
     else
-        printf "%s\n" "${YELLOW}[WARN]${NC} No font found (non-fatal)"
+        echo -e "${YELLOW}[WARN]${NC} No font found (non-fatal)"
     fi
 fi
 

@@ -46,10 +46,13 @@ show_guide() {
 
 dhcp_all() {
     echo -e "${YELLOW}[INFO]${NC} Bringing up network (DHCP)..."
-    for iface in $(ip link | grep -o '^[0-9]*: [^:]*' | cut -d' ' -f2 | grep -v lo); do
-        ip link set "$iface" up
-        sleep 2
-        udhcpc -i "$iface" -s /usr/share/udhcpc/default.script -t 5 -T 2 2>/dev/null || true
+    for iface in $(ip -o link | awk -F': ' '{print $2}' | grep -v lo); do
+        # Skip WiFi (handled by wifi_config). Also skip interfaces
+        # whose name starts with wl (predictable naming) or wlan
+        case "$iface" in wl*|wlan*|Wi-Fi*) continue ;; esac
+        ip link set "$iface" up 2>/dev/null || true
+        # udhcpc -n: exit if no lease, -q: quit after lease
+        udhcpc -i "$iface" -s /usr/share/udhcpc/default.script -n -q -t 3 -T 2 2>/dev/null || true
         if ip -4 addr show "$iface" | grep -q 'inet '; then
             echo -e "  ${GREEN}[OK]${NC} $iface has IP"
         else

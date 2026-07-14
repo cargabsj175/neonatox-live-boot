@@ -158,7 +158,8 @@ cmd_connect() {
         sleep 1; waited=$((waited + 1))
     done
     warn "Associated but no IP — running DHCP..."
-    udhcpc -i "$iface" -n -q 2>/dev/null
+    udhcpc -i "$iface" -q -t 10 -T 2 2>/dev/null
+    sleep 2
     if iface_has_ip "$iface"; then
         ok "Connected: $ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
         return 0
@@ -268,7 +269,8 @@ cmd_interactive() {
         ok "Connected: $target_ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
     else
         info "Running DHCP..."
-        udhcpc -i "$iface" -n -q 2>/dev/null
+        udhcpc -i "$iface" -q -t 10 -T 2 2>/dev/null
+        sleep 2
         if iface_has_ip "$iface"; then
             ok "Connected: $target_ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
         else

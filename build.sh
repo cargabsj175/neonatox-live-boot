@@ -206,7 +206,20 @@ xorriso"
 fi
 
 for bin in $REQUIRED_BINS; do
-    if ! command -v "$bin" >/dev/null 2>&1; then
+    # tools/output/busybox es un archivo, no un comando en PATH
+    if [ "$bin" = "tools/output/busybox" ]; then
+        if [ ! -f "$SCRIPT_DIR/$bin" ]; then
+            # Si busybox está en PATH del host, copiarlo
+            if command -v busybox >/dev/null 2>&1; then
+                mkdir -p "$SCRIPT_DIR/tools/output"
+                cp "$(command -v busybox)" "$SCRIPT_DIR/$bin"
+            else
+                echo -e "${RED}[ERROR]${NC} missing required binary: $bin"
+                echo -e "${YELLOW}[HINT]${NC} Install busybox or run: ./build-tools.sh --busybox"
+                exit 10
+            fi
+        fi
+    elif ! command -v "$bin" >/dev/null 2>&1; then
         echo -e "${RED}[ERROR]${NC} missing required binary: $bin"
         exit 10
     fi

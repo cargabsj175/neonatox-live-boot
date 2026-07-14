@@ -72,6 +72,15 @@ build_tool() {
         exit 1
     fi
 
+    # Busybox: usar el del sistema si está en PATH
+    if [ "$TOOL" = "busybox" ] && command -v busybox >/dev/null 2>&1; then
+        echo -e "${YELLOW}[INFO]${NC} busybox found in PATH, copying to output..."
+        mkdir -p "$OUT_DIR"
+        cp "$(command -v busybox)" "$OUT_DIR/busybox"
+        echo -e "${GREEN}[OK]${NC} busybox ready at $OUT_DIR/busybox"
+        return 0
+    fi
+
     echo "------------------------------------------------------------"
     echo -e "${BLUE}[BUILD]${NC} $TOOL"
     echo "------------------------------------------------------------"

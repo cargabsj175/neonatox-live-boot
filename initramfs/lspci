@@ -1,0 +1,34 @@
+#!/bin/sh
+# Path to your custom or full pci.ids file from hwdata
+PCI_IDS="/usr/share/hwdata/pci.ids"
+
+if [ ! -f "$PCI_IDS" ]; then
+    echo "Error: hwdata pci.ids not found at $PCI_IDS" >&2
+    exit 1
+fi
+
+# Loop through BusyBox lspci raw hexadecimal output
+# Example format from BusyBox: 00:02.0 Class 0300: 8086:5916
+busybox lspci -n | while read -r slot class_label class vendor_device; do
+    # Extract Vendor ID and Device ID (e.g., "8086:5916" -> "8086" and "5916")
+    vendor=$(echo "$vendor_device" | cut -d':' -f1 | tr '[:upper:]' '[:lower:]')
+    device=$(echo "$vendor_device" | cut -d':' -f2 | tr '[:upper:]' '[:lower:]')
+
+    # Look up Vendor name (Lines starting with the 4-digit hex, no indentation)
+    v_name=$(awk -v v="$vendor" '$1 == v {for(i=2;i<=NF;i++) printf "%s ", $i; exit}' "$PCI_IDS")
+    
+    # Look up Device name (Lines starting with a single tab, then the 4-digit hex)
+    # This filters specifically within that vendor's block for accuracy
+    d_name=$(awk -v v="$vendor" -v d="$device" '
+        $1 == v {found=1; next}
+        found && /^[0-9a-fA-F]/ {exit} 
+        found && /^\t/ && $1 == d {for(i=2;i<=NF;i++) printf "%s ", $i; exit}
+    ' "$PCI_IDS")
+
+    # Fallback if IDs aren't in the database
+    [ -z "$v_name" ] && v_name="Unknown Vendor ($vendor)"
+    [ -z "$d_name" ] && d_name="Unknown Device ($device)"
+
+    # Print clean, human-readable output
+    echo "$slot $v_name: $d_name"
+done

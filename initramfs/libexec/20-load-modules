@@ -25,6 +25,9 @@ LEGACY="ata_piix pata_generic"
 NVME="nvme nvme_core"
 HID="hid-generic usbhid i8042 atkbd libps2"
 
+echo -e "${YELLOW}[MOD]${NC} generating module dependencies..."
+depmod 2>/dev/null || true
+
 echo -e "${YELLOW}[MOD]${NC} loading modules..."
 for m in $FILESYSTEMS $MEDIA $LEGACY $NVME $HID $NET $WIFI; do
     modprobe $m 2>/dev/null

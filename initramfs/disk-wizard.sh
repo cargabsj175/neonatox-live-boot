@@ -2,7 +2,7 @@
 # NeonatoX Disk Partitioning Wizard
 # Guided partitioning for netinstall shell (busybox ash)
 # Uses: fdisk, mkfs.ext4, mkswap, blkid, blockdev
-# MBR only (busybox fdisk doesn't support GPT)
+# MBR or GPT (busybox fdisk with CONFIG_FEATURE_GPT_LABEL=y)
 # Exports: DISK, ROOT_PART, SWAP_PART, MOUNT_POINT for nhopkg
 
 RED='\033[0;31m'; GREEN='\033[0;32m'
@@ -15,8 +15,12 @@ SWAP="n"
 SWAP_SIZE=""
 ROOT_PART=""
 SWAP_PART=""
+EFI_PART=""
 MOUNT_POINT="/mnt"
 ABORTED=0
+GPT=0
+EFI=0
+PARTTABLE="dos"
 
 die() {
     echo -e "${RED}${1:-Aborted}${NC}"
@@ -100,6 +104,45 @@ select_disk() {
     echo -e "  ${GREEN}Selected: $DISK${NC}"
 }
 
+# Detect if fdisk supports GPT (g command)
+detect_gpt() {
+    local tmp
+    tmp=$(mktemp /tmp/disk_test.XXXXXX 2>/dev/null) || return 1
+    dd if=/dev/zero of="$tmp" bs=1M count=1 2>/dev/null
+    echo "g" | fdisk "$tmp" >/dev/null 2>&1
+    local rc=$?
+    rm -f "$tmp"
+    return $rc
+}
+
+select_table_type() {
+    if detect_gpt; then
+        echo ""
+        echo "Partition table types:"
+        echo "  1) MBR (DOS) — legacy/compatible"
+        echo "  2) GPT — modern, UEFI, >2TB"
+        local tbl_choice
+        read -r -p "Select type (1-2) [1]: " tbl_choice
+        case "$tbl_choice" in
+            2) GPT=1; PARTTABLE="gpt" ;;
+            *) GPT=0; PARTTABLE="dos" ;;
+        esac
+    else
+        echo -e "${YELLOW}[INFO]${NC} fdisk doesn't support GPT creation, using MBR"
+        GPT=0
+        PARTTABLE="dos"
+    fi
+    if [ "$GPT" = 1 ]; then
+        echo -e "  Partition table: ${BLUE}GPT${NC}"
+        if select_yesno "Create EFI System Partition (for UEFI boot)?"; then
+            EFI=1
+            echo -e "  ${BLUE}EFI partition will be created${NC}"
+        fi
+    else
+        echo -e "  Partition table: ${BLUE}MBR (DOS)${NC}"
+    fi
+}
+
 confirm_partition_table() {
     local existing
     existing=$(partitions_on "$DISK")
@@ -134,13 +177,43 @@ wait_for_part() {
 }
 
 do_auto() {
-    local script disk_mb root_part_size
+    local script disk_mb root_part_size next=1
 
     step "Partition scheme"
-    echo "  Auto: single ext4 partition + optional swap"
+    echo "  Auto: single ext4 root + optional swap${EFI:+ + EFI System}"
     echo ""
     select_yesno "Create swap partition?" && SWAP="y" || SWAP="n"
 
+    script=""
+    # Partition table type
+    [ "$GPT" = 1 ] && script="${script}g\n" || script="${script}o\n"
+
+    # EFI System Partition (GPT only)
+    if [ "$EFI" = 1 ]; then
+        script="${script}n\n${next}\n\n+512M\n"
+        script="${script}t\n${next}\n1\n"
+        next=$((next + 1))
+    fi
+
+    # Root partition
+    if [ "$SWAP" = "y" ] || [ -n "$ROOT_SIZE" ]; then
+        if [ "$GPT" = 1 ]; then
+            script="${script}n\n${next}\n\n${ROOT_SIZE:++${ROOT_SIZE}}\n"
+        else
+            script="${script}n\np\n${next}\n\n${ROOT_SIZE:++${ROOT_SIZE}}\n"
+        fi
+        next=$((next + 1))
+    else
+        # Single root takes all
+        if [ "$GPT" = 1 ]; then
+            script="${script}n\n${next}\n\n\n"
+        else
+            script="${script}n\np\n${next}\n\n\n"
+        fi
+        next=$((next + 1))
+    fi
+
+    # Swap partition
     if [ "$SWAP" = "y" ]; then
         disk_mb=$(($(disk_bytes "$DISK") / 1048576))
         local swap_default=$(( disk_mb / 10 ))
@@ -149,22 +222,23 @@ do_auto() {
         swap_default="${swap_default}M"
         read -r -p "  Swap size (default ${swap_default}): " SWAP_SIZE
         [ -z "$SWAP_SIZE" ] && SWAP_SIZE="$swap_default"
-        script="o\nn\np\n1\n\n+${ROOT_SIZE:+${ROOT_SIZE}}\n"
-        script="${script}n\np\n2\n\n+${SWAP_SIZE}\n"
-        script="${script}t\n2\n82\n"
-        script="${script}w\n"
-    else
-        script="o\nn\np\n1\n\n\nw\n"
+        if [ "$GPT" = 1 ]; then
+            script="${script}n\n${next}\n\n+${SWAP_SIZE}\n"
+            script="${script}t\n${next}\n19\n"
+        else
+            script="${script}n\np\n${next}\n\n+${SWAP_SIZE}\n"
+            script="${script}t\n${next}\n82\n"
+        fi
+        next=$((next + 1))
     fi
+    script="${script}w\n"
 
     step "Confirmation"
+    echo "  Table:    $PARTTABLE"
     echo "  Disk:     $DISK ($(disk_size_str "$DISK"))"
-    if [ "$SWAP" = "y" ]; then
-        echo "  Partition 1: ext4 (root) - ${ROOT_SIZE:-remaining space}"
-        echo "  Partition 2: swap - $SWAP_SIZE"
-    else
-        echo "  Partition 1: ext4 (root) - 100% of disk"
-    fi
+    [ "$EFI" = 1 ] && echo "  Partition 1: EFI System - 512M"
+    echo "  Root:     ext4 - ${ROOT_SIZE:-remaining space}"
+    [ "$SWAP" = "y" ] && echo "  Swap:     $SWAP_SIZE"
     echo "  Mount:    $MOUNT_POINT"
     echo ""
     confirm_partition_table
@@ -174,19 +248,30 @@ do_auto() {
     run_fdisk "$script"
     echo -e "  ${GREEN}Partition table written${NC}"
 
-    ROOT_PART="${DISK}1"
+    # Set partition variables
+    local p=1
+    [ "$EFI" = 1 ] && { EFI_PART="${DISK}${p}"; p=$((p + 1)); } || EFI_PART=""
+    ROOT_PART="${DISK}${p}"; p=$((p + 1))
     SWAP_PART=""
-    [ "$SWAP" = "y" ] && SWAP_PART="${DISK}2"
+    [ "$SWAP" = "y" ] && { SWAP_PART="${DISK}${p}"; p=$((p + 1)); }
 
     # Wait for kernel to detect partitions
     echo -e "  ${YELLOW}Waiting for partitions...${NC}"
-    wait_for_part "$ROOT_PART" || {
-        # Try nvme naming (nvme0n1p1 instead of nvme0n11)
-        case "$DISK" in
-            *nvme*|*mmcblk*) ROOT_PART="${DISK}p1"; [ "$SWAP" = "y" ] && SWAP_PART="${DISK}p2" ;;
-        esac
-        wait_for_part "$ROOT_PART" || die "Partition $ROOT_PART not detected"
-    }
+    local all_parts="$ROOT_PART $SWAP_PART $EFI_PART"
+    for part in $all_parts; do
+        [ -z "$part" ] && continue
+        # Try with p prefix for NVMe/mmcblk
+        wait_for_part "$part" || {
+            case "$DISK" in *nvme*|*mmcblk*) part="${DISK}p${part##*[!0-9]}"; wait_for_part "$part" || true ;; esac
+        }
+    done
+    # Re-check with correct naming
+    for part in $ROOT_PART $SWAP_PART $EFI_PART; do
+        [ -b "$part" ] && continue
+        case "$DISK" in *nvme*|*mmcblk*) 
+            eval "${part##*/}_PART=\"${DISK}p${part##*[!0-9]}\"" 2>/dev/null || true
+        ;; esac
+    done
     echo -e "  ${GREEN}Partitions ready${NC}"
 }
 
@@ -198,49 +283,69 @@ do_manual() {
     select_yesno "Create swap partition?" && SWAP="y" || SWAP="n"
     [ "$SWAP" = "y" ] && read -r -p "  Swap size: " SWAP_SIZE
 
-    local script="o\n"
+    local script="" next=1
+    # Partition table type
+    [ "$GPT" = 1 ] && script="${script}g\n" || script="${script}o\n"
+
+    # EFI System Partition (GPT only)
+    if [ "$EFI" = 1 ]; then
+        script="${script}n\n${next}\n\n+512M\n"
+        script="${script}t\n${next}\n1\n"
+        next=$((next + 1))
+    fi
+
+    # Single partition (root only, no swap)
+    if [ "$SWAP" != "y" ] && [ -z "$ROOT_SIZE" ]; then
+        if [ "$GPT" = 1 ]; then
+            script="${script}n\n${next}\n\n\nw\n"
+        else
+            script="${script}n\np\n${next}\n\n\nw\n"
+        fi
+        run_fdisk "$script"
+        ROOT_PART="${DISK}${next}"
+        SWAP_PART=""
+        wait_for_part "$ROOT_PART" || {
+            case "$DISK" in *nvme*|*mmcblk*) ROOT_PART="${DISK}p${next}" ;; esac
+            wait_for_part "$ROOT_PART" || die "Partition $ROOT_PART not detected"
+        }
+        step "Confirmation"
+        echo "  Table: $PARTTABLE"
+        echo "  Disk: $DISK ($(disk_size_str "$DISK"))"
+        [ "$EFI" = 1 ] && echo "  Partition 1: EFI System - 512M"
+        echo "  Root: ext4 - 100% of disk"
+        confirm_partition_table
+        echo "... already written: single partition"
+        return
+    fi
 
     # Root partition
-    if [ -n "$ROOT_SIZE" ]; then
-        script="${script}n\np\n1\n\n+${ROOT_SIZE}\n"
+    local root_part_num=$next
+    if [ "$GPT" = 1 ]; then
+        script="${script}n\n${next}\n\n${ROOT_SIZE:++${ROOT_SIZE}}\n"
     else
-        # Root takes all if no swap
-        if [ "$SWAP" != "y" ]; then
-            script="${script}n\np\n1\n\n\nw\n"
-            run_fdisk "$script"
-            ROOT_PART="${DISK}1"
-            SWAP_PART=""
-            [ "$SWAP" = "y" ] && SWAP_PART="${DISK}2"
-            wait_for_part "$ROOT_PART" || {
-                case "$DISK" in *nvme*|*mmcblk*) ROOT_PART="${DISK}p1"; [ "$SWAP" = "y" ] && SWAP_PART="${DISK}p2" ;; esac
-                wait_for_part "$ROOT_PART" || die "Partition $ROOT_PART not detected"
-            }
-            step "Confirmation"
-            echo "  Disk: $DISK ($(disk_size_str "$DISK"))"
-            echo "  Partition 1: ext4 (root) - 100% of disk"
-            confirm_partition_table
-            echo "... already written: single partition"
-            return
-        fi
-        ROOT_SIZE=""
-        script="${script}n\np\n1\n\n\n"
+        script="${script}n\np\n${next}\n\n${ROOT_SIZE:++${ROOT_SIZE}}\n"
     fi
+    next=$((next + 1))
 
     # Swap partition
     if [ "$SWAP" = "y" ]; then
-        if [ -n "$SWAP_SIZE" ]; then
-            script="${script}n\np\n2\n\n+${SWAP_SIZE}\n"
+        if [ "$GPT" = 1 ]; then
+            [ -n "$SWAP_SIZE" ] && script="${script}n\n${next}\n\n+${SWAP_SIZE}\n" || script="${script}n\n${next}\n\n\n"
+            script="${script}t\n${next}\n19\n"
         else
-            script="${script}n\np\n2\n\n\n"
+            [ -n "$SWAP_SIZE" ] && script="${script}n\np\n${next}\n\n+${SWAP_SIZE}\n" || script="${script}n\np\n${next}\n\n\n"
+            script="${script}t\n${next}\n82\n"
         fi
-        script="${script}t\n2\n82\n"
+        next=$((next + 1))
     fi
     script="${script}w\n"
 
     step "Confirmation"
+    echo "  Table: $PARTTABLE"
     echo "  Disk: $DISK ($(disk_size_str "$DISK"))"
-    echo "  Partition 1: ext4 (root) - ${ROOT_SIZE:-remaining space}"
-    [ "$SWAP" = "y" ] && echo "  Partition 2: swap - ${SWAP_SIZE:-remaining space}"
+    [ "$EFI" = 1 ] && echo "  Partition 1: EFI System - 512M"
+    echo "  Root: ext4 - ${ROOT_SIZE:-remaining space}"
+    [ "$SWAP" = "y" ] && echo "  Swap: ${SWAP_SIZE:-remaining space}"
     echo ""
     confirm_partition_table
 
@@ -249,15 +354,20 @@ do_manual() {
     run_fdisk "$script"
     echo -e "  ${GREEN}Partition table written${NC}"
 
-    ROOT_PART="${DISK}1"
+    # Set partition variables
+    ROOT_PART="${DISK}${root_part_num}"
     SWAP_PART=""
-    [ "$SWAP" = "y" ] && SWAP_PART="${DISK}2"
+    [ "$SWAP" = "y" ] && SWAP_PART="${DISK}${root_part_num}"
+    [ "$EFI" = 1 ] && EFI_PART="${DISK}1"
 
     echo -e "  ${YELLOW}Waiting for partitions...${NC}"
-    wait_for_part "$ROOT_PART" || {
-        case "$DISK" in *nvme*|*mmcblk*) ROOT_PART="${DISK}p1"; [ "$SWAP" = "y" ] && SWAP_PART="${DISK}p2" ;; esac
-        wait_for_part "$ROOT_PART" || die "Partition $ROOT_PART not detected"
-    }
+    local all_parts="$ROOT_PART $SWAP_PART $EFI_PART"
+    for part in $all_parts; do
+        [ -z "$part" ] && continue
+        wait_for_part "$part" || {
+            case "$DISK" in *nvme*|*mmcblk*) part="${DISK}p${part##*[!0-9]}"; wait_for_part "$part" || true ;; esac
+        }
+    done
     echo -e "  ${GREEN}Partitions ready${NC}"
 }
 
@@ -328,6 +438,9 @@ main() {
 
     step "Select disk"
     select_disk
+
+    step "Partition table"
+    select_table_type
 
     echo ""
     echo "Partitioning schemes:"

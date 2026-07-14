@@ -75,6 +75,7 @@ wpa_stop() {
 
 wpa_start() {
     local iface="$1"
+    mkdir -p "$WPA_CTRL"
     cat > "$WPA_CONF" <<-EOF
 		ctrl_interface=$WPA_CTRL
 		update_config=1

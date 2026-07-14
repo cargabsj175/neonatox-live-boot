@@ -9,6 +9,7 @@ else
 fi
 
 mount -t tmpfs tmpfs /run
+ln -sf /run /var/run 2>/dev/null || mkdir -p /var/run
 
 mkdir -p /dev/pts
 mount -t devpts devpts -o gid=5,mode=0620 /dev/pts 2>/dev/null || true

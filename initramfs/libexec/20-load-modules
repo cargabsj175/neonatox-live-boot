@@ -6,7 +6,9 @@ case "${1:-live}" in
     netinstall)
         FILESYSTEMS="ext2 ext3 ext4 vfat fat exfat ntfs3 btrfs xfs"
         NET="virtio_net e1000 e1000e r8169 tg3"
-        WIFI="ath5k ath9k iwlwifi iwlmvm iwlmld iwldvm"
+        WIFI="ath5k ath9k iwlwifi iwlmvm iwlmld iwldvm \
+               rtl8xxxu rtl8188ee rtl8192ce rtl8723be rtl8821ae \
+               rtw88_8822be rtw88_8822ce rtw89_8852be rtw89_8852ce rtw89_8922ae"
         ;;
     *)
         FILESYSTEMS="isofs squashfs overlay vfat fat exfat ntfs3 ext2"

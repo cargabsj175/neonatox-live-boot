@@ -60,7 +60,34 @@ fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd -P)
 
-WORKDIR="/tmp/neonatox-live"
+# Function to check available space 
+check_tmp_space() {  
+    local required_gb=5  
+    local tmp_space_kb
+    tmp_space_kb=$(df -P /tmp | awk 'NR==2 {print $4}')  
+    tmp_space_kb=${tmp_space_kb:-0}  
+    local tmp_space_gb=$((tmp_space_kb / 1024 / 1024))  
+      
+    if [ "$tmp_space_gb" -lt "$required_gb" ]; then  
+        echo -e "${YELLOW}[WARN]${NC} /tmp tiene solo ${tmp_space_gb}GB (< ${required_gb}GB)"  
+        local var_space_kb  
+        var_space_kb=$(df -P /var/tmp | awk 'NR==2 {print $4}')  
+        var_space_kb=${var_space_kb:-0}  
+        local var_space_gb=$((var_space_kb / 1024 / 1024))  
+        if [ "$var_space_gb" -ge "$required_gb" ]; then  
+            echo -e "${YELLOW}[INFO]${NC} Usando ruta alternativa: /var/tmp/neonatox-live"  
+            WORKDIR="/var/tmp/neonatox-live"  
+        else  
+            echo -e "${RED}[ERROR]${NC} /var/tmp también insuficiente (${var_space_gb}GB)"  
+            echo -e "${YELLOW}[INFO]${NC} Se necesita al menos ${required_gb}GB libres en /tmp o /var/tmp"  
+            exit 1  
+        fi  
+    else  
+        WORKDIR="/tmp/neonatox-live"  
+    fi  
+}
+
+check_tmp_space
 ISO_DIR="$WORKDIR/iso"
 OUTDIR="$SCRIPT_DIR/output"
 INITRAMFS_STAGING="$WORKDIR/initramfs"

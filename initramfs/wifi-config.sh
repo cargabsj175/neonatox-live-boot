@@ -50,9 +50,12 @@ connect_wpa() {
     PSK="$2"
 
     # Prefer wpa_passphrase if available, fall back to wpa_cli
+    mkdir -p /var/run/wpa_supplicant
     if command -v wpa_passphrase >/dev/null 2>&1; then
         CONF="/tmp/wpa.conf"
         wpa_passphrase "$SSID" "$PSK" > "$CONF" 2>/dev/null
+        echo "ctrl_interface=/var/run/wpa_supplicant" >> "$CONF"
+        echo "update_config=1" >> "$CONF"
         wpa_supplicant -B -i "$WIFI_IFACE" -c "$CONF" 2>/dev/null
     else
         # Use wpa_cli (wpa_supplicant does PSK hashing internally)
@@ -65,9 +68,16 @@ connect_wpa() {
     fi
 
     echo -e "${YELLOW}[INFO]${NC} Waiting for association..."
-    sleep 3
+    local waited=0
+    while [ "$waited" -lt 20 ]; do
+        wpa_state=$(wpa_cli -i "$WIFI_IFACE" status 2>/dev/null | grep 'wpa_state=' | cut -d= -f2)
+        [ "$wpa_state" = "COMPLETED" ] && break
+        sleep 1; waited=$((waited + 1))
+    done
+    echo -e "${YELLOW}[INFO]${NC} wpa_state=$wpa_state"
 
-    udhcpc -i "$WIFI_IFACE" -n -q 2>/dev/null
+    udhcpc -i "$WIFI_IFACE" -q -t 10 -T 2 2>/dev/null
+    sleep 2
 
     if ip -4 addr show "$WIFI_IFACE" | grep -q 'inet '; then
         echo -e "${GREEN}[OK]${NC} WiFi connected: $SSID"

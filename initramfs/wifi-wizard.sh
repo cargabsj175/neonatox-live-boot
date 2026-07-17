@@ -1,7 +1,7 @@
 #!/bin/sh
 # NeonatoX WiFi Wizard
 # Interactive WiFi setup for netinstall & live modes
-# Uses: wpa_supplicant, wpa_cli, wpa_passphrase, udhcpc
+# Uses: wpa_supplicant, wpa_cli, wpa_passphrase, dhcpcd|udhcpc
 # No iw dependency — scanning via wpa_cli
 
 RED='\033[0;31m'; GREEN='\033[0;32m'
@@ -9,6 +9,12 @@ YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
 WPA_CONF="/tmp/wpa_supplicant.conf"
 WPA_CTRL="/var/run/wpa_supplicant"
+
+if command -v dhcpcd >/dev/null 2>&1; then
+    DHCP_CLIENT="dhcpcd"
+else
+    DHCP_CLIENT="udhcpc"
+fi
 
 # --- helpers ----------------------------------------------------------------
 
@@ -19,7 +25,7 @@ info()   { echo -e "${BLUE}${1}${NC}"; }
 
 check_deps() {
     local miss=""
-    for cmd in wpa_supplicant wpa_cli wpa_passphrase udhcpc; do
+    for cmd in wpa_supplicant wpa_cli wpa_passphrase "$DHCP_CLIENT"; do
         command -v "$cmd" >/dev/null 2>&1 || miss="$miss $cmd"
     done
     [ -n "$miss" ] && die "Missing:${miss}"
@@ -50,6 +56,20 @@ case "$1" in
 esac
 UDHCPC
     chmod 0755 "$script"
+}
+
+dhcp_run() {
+    local iface="$1"
+    case "$DHCP_CLIENT" in
+        dhcpcd)
+            dhcpcd -1 -t 20 "$iface" 2>/dev/null
+            sleep 2
+            ;;
+        udhcpc)
+            udhcpc -i "$iface" -q -t 10 -T 2 2>/dev/null
+            sleep 2
+            ;;
+    esac
 }
 
 find_ifaces() {
@@ -132,7 +152,7 @@ cmd_connect() {
     [ -z "$ssid" ] && die "Usage: wifi-wizard --connect SSID PSK [IFACE]"
 
     check_deps
-    ensure_udhcpc_script
+    [ "$DHCP_CLIENT" = "udhcpc" ] && ensure_udhcpc_script
     [ -z "$iface" ] && {
         ifaces=$(find_ifaces) || die "No WiFi interfaces found"
         iface=$(echo "$ifaces" | head -1)
@@ -158,8 +178,7 @@ cmd_connect() {
         sleep 1; waited=$((waited + 1))
     done
     warn "Associated but no IP — running DHCP..."
-    udhcpc -i "$iface" -q -t 10 -T 2 2>/dev/null
-    sleep 2
+    dhcp_run "$iface"
     if iface_has_ip "$iface"; then
         ok "Connected: $ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
         return 0
@@ -169,7 +188,7 @@ cmd_connect() {
 
 cmd_interactive() {
     check_deps
-    ensure_udhcpc_script
+    [ "$DHCP_CLIENT" = "udhcpc" ] && ensure_udhcpc_script
 
     # --- Find interface ---
     ifaces=$(find_ifaces) || die "No WiFi interfaces found"
@@ -269,12 +288,11 @@ cmd_interactive() {
         ok "Connected: $target_ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
     else
         info "Running DHCP..."
-        udhcpc -i "$iface" -q -t 10 -T 2 2>/dev/null
-        sleep 2
+        dhcp_run "$iface"
         if iface_has_ip "$iface"; then
             ok "Connected: $target_ssid ($(ip -4 addr show "$iface" | grep 'inet ' | awk '{print $2}'))"
         else
-            warn "Associated but no IP. Check password or try manual: udhcpc -i $iface"
+            warn "Associated but no IP. Check password or try manual: ${DHCP_CLIENT} -i $iface"
         fi
     fi
 }

@@ -119,6 +119,7 @@ trap 'echo -e "${RED}[FATAL]${NC} error in section: $CURRENT_SECTION (line $LINE
 # ----------------------------------------------------------
 
 NETINSTALL_MODE=false
+SYSTEM_MUSL=false
 WITHOUT_MAKE_ISO=false
 MAKE_ISO_ONLY=false
 DO_CLEAN=false
@@ -131,6 +132,7 @@ Uso: sudo ./build.sh [OPCIONES]
 
 Opciones:
   --make-netinstall        Generar ISO netinstall (sin squashfs, con herramientas de red)
+  --system-musl            (netinstall) nhopkg con soporte musl (repo-arch=x86_64-musl)
   --without-make-iso       Preparar artefactos sin empaquetar la ISO
   --make-iso               Solo empaquetar ISO desde artefactos existentes
   --clean                  Limpiar directorio de trabajo
@@ -151,6 +153,7 @@ echo "Neonatox Live Boot - ${NLB_VERSION} Carlos Sanchez - 2007-2026"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --make-netinstall) NETINSTALL_MODE=true ;;
+        --system-musl) SYSTEM_MUSL=true ;;
         --without-make-iso) WITHOUT_MAKE_ISO=true ;;
         --make-iso) MAKE_ISO_ONLY=true ;;
         --clean) DO_CLEAN=true ;;
@@ -187,6 +190,12 @@ fi
 # --make-netinstall: ajustar modo
 if [ "$NETINSTALL_MODE" = true ]; then
     echo -e "${YELLOW}[INFO]${NC} Modo netinstall activado"
+fi
+
+# --system-musl solo tiene sentido en modo netinstall
+if [ "$SYSTEM_MUSL" = true ] && [ "$NETINSTALL_MODE" = false ]; then
+    echo -e "${RED}[ERROR]${NC} --system-musl solo es válido junto con --make-netinstall" >&2
+    exit 1
 fi
 
 case "$COMPRESSION" in
@@ -561,15 +570,31 @@ if [ "$NETINSTALL_MODE" = true ]; then
     # nhopkg (clone + meson install)
     echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."
     rm -rf /tmp/nhopkg 2>/dev/null || true
-    git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
-        echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
-        exit 1
-    }
+    if [ "$SYSTEM_MUSL" = true ]; then
+        git clone --branch musl https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
+            echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
+            exit 1
+        }
+    else
+        git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
+            echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
+            exit 1
+        }
+    fi
     echo -e "${YELLOW}[INFO]${NC} Installing nhopkg..."
     (
         cd /tmp/nhopkg
         sed -i 's/^NHOPKG_GETTEXT=.*/NHOPKG_GETTEXT=no/' src/nhopkg.conf.in 2>/dev/null || true
-        meson setup build 2>/dev/null || true
+        if [ "$SYSTEM_MUSL" = true ]; then
+            meson setup build \
+                -D binlocate=plocate \
+                -D repo-version=n27 \
+                -D repo-arch=x86_64-musl \
+                -D libc=musl \
+                -D git-branch=musl 2>/dev/null || true
+        else
+            meson setup build 2>/dev/null || true
+        fi
         cd build 2>/dev/null || exit 1
         DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null || true
         [ -d "$PWD/DESTDIR" ] && cp -r "$PWD/DESTDIR"/* "$EXTRA_DIR/nhopkg-install/" 2>/dev/null || true
@@ -799,6 +824,10 @@ echo -e "${YELLOW}[INFO]${NC} Building final ISO..."
 
 if [ "$NETINSTALL_MODE" = true ]; then
     ISO_NAME="${BASE_NAME}-netinstall"
+fi
+
+if [ "$SYSTEM_MUSL" = true ]; then
+    ISO_NAME="${ISO_NAME}-musl"
 fi
 
 xorriso -as mkisofs \

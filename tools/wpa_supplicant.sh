@@ -284,4 +284,6 @@ install -m755 wpa_supplicant    "$DEST/wpa_supplicant"
 install -m755 wpa_cli           "$DEST/wpa_cli"
 [ -f wpa_passphrase ] && install -m755 wpa_passphrase "$DEST/wpa_passphrase"
 
+echo "$WPA_V" > "$DEST/wpa_supplicant.version"
+
 echo -e "${GREEN}[DONE]${NC} wpa_supplicant tools copied to initramfs"

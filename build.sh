@@ -125,6 +125,7 @@ MAKE_ISO_ONLY=false
 DO_CLEAN=false
 DO_CLEAN_ALL=false
 COMPRESSION="zstd"
+TOOLS_MODE="auto"
 
 show_help() {
     cat <<EOF
@@ -139,6 +140,8 @@ Opciones:
   --clean-all              Limpiar workdir, fuentes de tools e ISOs generadas
   --compress FORMAT        Compresión initramfs: zstd (default, rápido) o xz (lento, menor tamaño)
   --decompress-kernel-modules  Descomprimir .ko.zst (para busybox modprobe que no soporta módulos comprimidos)
+  --fetch-tools            Solo descargar tools precompiladas (nunca compilar)
+  --compile-tools          Solo compilar tools (nunca descargar)
   --version                Muestra la version
   --help, -h               Mostrar esta ayuda
 
@@ -160,6 +163,8 @@ while [[ $# -gt 0 ]]; do
         --clean-all) DO_CLEAN_ALL=true ;;
         --compress) COMPRESSION="$2"; shift ;;
         --decompress-kernel-modules) DECOMPRESS_MODULES=true ;;
+        --fetch-tools) FETCH_TOOLS=true ;;
+        --compile-tools) COMPILE_TOOLS=true ;;
         --version|-v) show_ver; exit 0 ;;
         --help|-h) show_help; exit 0 ;;
         *) echo -e "${RED}[ERROR]${NC} Argumento desconocido: $1" >&2; show_help; exit 1 ;;
@@ -171,6 +176,16 @@ done
 if [ "$MAKE_ISO_ONLY" = true ] && [ "$WITHOUT_MAKE_ISO" = true ]; then
     echo -e "${RED}[ERROR]${NC} --make-iso y --without-make-iso son contradictorios" >&2
     exit 1
+fi
+
+if [ "$FETCH_TOOLS" = true ] && [ "$COMPILE_TOOLS" = true ]; then
+    echo -e "${RED}[ERROR]${NC} --fetch-tools y --compile-tools son contradictorios" >&2
+    exit 1
+fi
+if [ "$FETCH_TOOLS" = true ]; then
+    TOOLS_MODE="fetch"
+elif [ "$COMPILE_TOOLS" = true ]; then
+    TOOLS_MODE="compile"
 fi
 
 # --clean y --clean-all tienen prioridad y salen
@@ -484,29 +499,38 @@ BASH_BIN="$SCRIPT_DIR/tools/output/bash"
 BUILD_TOOLS="$SCRIPT_DIR/build-tools.sh"
 
 # ----------------------------------------------------------
+# ensure_tool <tool> <binary-path>
+# Mode auto: fetch primero, compila si falla.
+# Mode fetch/compile: solo una vía.
+# ----------------------------------------------------------
+ensure_tool() {
+    local tool="$1" bin="$2"
+    [ -f "$bin" ] && return 0
+    echo -e "${YELLOW}[INFO]${NC} $tool not found at $bin"
+    case "$TOOLS_MODE" in
+        compile)
+            "$BUILD_TOOLS" "--$tool" || true
+            ;;
+        fetch)
+            "$BUILD_TOOLS" --fetch "$tool" || true
+            ;;
+        *)
+            "$BUILD_TOOLS" --fetch "$tool" && return 0
+            "$BUILD_TOOLS" "--$tool" || true
+            ;;
+    esac
+    if [ ! -f "$bin" ]; then
+        echo -e "${RED}[FATAL]${NC} $tool still missing after ensure_tool"
+        return 1
+    fi
+    echo -e "${GREEN}[OK]${NC} $tool ready"
+}
+
+# ----------------------------------------------------------
 # 1. Ensure + validate busybox
 # ----------------------------------------------------------
 if [ ! -f "$BUSYBOX_BIN" ]; then
-    echo "[WARN] busybox not found at:"
-    echo "       $BUSYBOX_BIN"
-    echo
-    if [ -x "$BUILD_TOOLS" ]; then
-        echo -e "${YELLOW}[INFO]${NC} Attempting to build busybox..."
-        "$BUILD_TOOLS" --busybox || {
-            echo -e "${RED}[ERROR]${NC} busybox build failed"
-            exit 1
-        }
-    else
-        echo -e "${RED}[ERROR]${NC} build-tools.sh not found or not executable"
-        echo "Please run manually:"
-        echo "  ./build-tools.sh --busybox"
-        exit 1
-    fi
-    if [ ! -f "$BUSYBOX_BIN" ]; then
-        echo -e "${RED}[FATAL]${NC} busybox still missing after build attempt"
-        exit 1
-    fi
-    echo -e "${GREEN}[OK]${NC} busybox successfully built"
+    ensure_tool busybox "$BUSYBOX_BIN" || exit 1
 fi
 
 if [ ! -x "$BUSYBOX_BIN" ]; then
@@ -529,24 +553,24 @@ echo -e "${GREEN}[OK]${NC} busybox validated"
 # ----------------------------------------------------------
 if [ "$NETINSTALL_MODE" = true ]; then
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static bash..."
-    [ ! -f "$SCRIPT_DIR/tools/output/bash" ] && "$BUILD_TOOLS" --bash || true
+    [ ! -f "$SCRIPT_DIR/tools/output/bash" ] && ensure_tool bash "$SCRIPT_DIR/tools/output/bash" || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring e2fsprogs..."
-    [ ! -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && "$BUILD_TOOLS" --e2fsprogs || true
+    [ ! -f "$SCRIPT_DIR/tools/output/mkfs.ext4" ] && ensure_tool e2fsprogs "$SCRIPT_DIR/tools/output/mkfs.ext4" || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring dropbear..."
-    [ ! -f "$SCRIPT_DIR/tools/output/dropbear" ] && "$BUILD_TOOLS" --dropbear || true
+    [ ! -f "$SCRIPT_DIR/tools/output/dropbear" ] && ensure_tool dropbear "$SCRIPT_DIR/tools/output/dropbear" || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring wpa_supplicant..."
-    [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && "$BUILD_TOOLS" --wpa_supplicant || true
+    [ ! -f "$SCRIPT_DIR/tools/output/wpa_supplicant" ] && ensure_tool wpa_supplicant "$SCRIPT_DIR/tools/output/wpa_supplicant" || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring static zstd..."
-    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && "$BUILD_TOOLS" --zstd || true
+    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && ensure_tool zstd "$SCRIPT_DIR/tools/output/zstd" || true
     echo -e "${YELLOW}[INFO]${NC} Netinstall: ensuring btrfs-progs..."
-    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && "$BUILD_TOOLS" --btrfsprogs || true
+    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && ensure_tool btrfsprogs "$SCRIPT_DIR/tools/output/btrfs" || true
 fi
 
 if [ "$NETINSTALL_MODE" = false ]; then
     echo -e "${YELLOW}[INFO]${NC} Live: ensuring static zstd..."
-    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && "$BUILD_TOOLS" --zstd || true
+    [ ! -f "$SCRIPT_DIR/tools/output/zstd" ] && ensure_tool zstd "$SCRIPT_DIR/tools/output/zstd" || true
     echo -e "${YELLOW}[INFO]${NC} Live: ensuring btrfs-progs..."
-    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && "$BUILD_TOOLS" --btrfsprogs || true
+    [ ! -f "$SCRIPT_DIR/tools/output/btrfs" ] && ensure_tool btrfsprogs "$SCRIPT_DIR/tools/output/btrfs" || true
 fi
 
 # ----------------------------------------------------------

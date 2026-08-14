@@ -1,0 +1,33 @@
+name: tools-release
+
+on:
+  push:
+    tags:
+      - 'tools-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes musl-tools zip file wget make gcc git
+
+      - name: Build all tools
+        run: ./build-tools.sh --all
+
+      - name: Publish zips to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOOLS_TAG: ${{ github.ref_name }}
+        run: ./tools/publish.sh --all
+
+      - name: Show generated manifest
+        run: cat tools/releases.sha256

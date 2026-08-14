@@ -114,4 +114,6 @@ mkdir -p "$DEST"
 install -m755 btrfs       "$DEST/btrfs"
 install -m755 mkfs.btrfs  "$DEST/mkfs.btrfs"
 
+echo "$BTRFS_V" > "$DEST/btrfsprogs.version"
+
 echo -e "${GREEN}[DONE]${NC} btrfs binaries copied to initramfs"

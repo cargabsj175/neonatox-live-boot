@@ -60,4 +60,6 @@ mkdir -p "$DEST"
 
 install -m755 programs/zstd "$DEST/zstd"
 
+echo "$VERSION" > "$DEST/zstd.version"
+
 echo -e "${GREEN}[DONE]${NC} zstd copied to initramfs (with symlinks)"

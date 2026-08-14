@@ -62,4 +62,7 @@ mkdir -p "$DEST"
 
 install -m755 busybox "$DEST/busybox"
 
+BUSYBOX_VER="$("$DEST/busybox" 2>&1 | head -1 | sed -n 's/.*BusyBox v\([0-9][0-9.]*\).*/\1/p')"
+echo "${BUSYBOX_VER:-unknown}" > "$DEST/busybox.version"
+
 echo -e "${GREEN}[DONE]${NC} Busybox ready at $DEST"

@@ -6,7 +6,9 @@ initramfs/*.ext4
 initramfs/wpa_*
 initramfs/zstd
 output/
+tools/dist/
 tools/output/
+tools/.env
 tools/src/*/
 tools/src/*.tar.*
 PROPOSAL*

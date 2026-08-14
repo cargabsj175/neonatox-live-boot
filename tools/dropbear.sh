@@ -69,4 +69,6 @@ mkdir -p "$DEST"
 install -m755 dropbear    "$DEST/dropbear"
 install -m755 dropbearkey "$DEST/dropbearkey"
 
+echo "$VERSION" > "$DEST/dropbear.version"
+
 echo -e "${GREEN}[DONE]${NC} Dropbear copied to initramfs"

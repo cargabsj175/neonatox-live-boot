@@ -118,4 +118,6 @@ install -m755 e2fsck/e2fsck  "$DEST/fsck.ext4"
 # install -m755 misc/tune2fs   "$DEST/tune2fs"
 # install -m755 misc/badblocks "$DEST/badblocks"
 
+echo "$VERSION" > "$DEST/e2fsprogs.version"
+
 echo -e "${GREEN}[DONE]${NC} Binaries copied to initramfs"

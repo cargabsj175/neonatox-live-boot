@@ -22,7 +22,9 @@ SRC_DIR="$TOOLS_DIR/src"
 OUT_DIR="$TOOLS_DIR/output"
 export SRC_DIR OUT_DIR
 
-clear
+. "$TOOLS_DIR/lib-pack.sh"
+
+clear 2>/dev/null || true
 echo -e "${YELLOW}========${NC} ${GREEN}Neonatox Live Boot Tools Builder - ${NLB_VERSION} Carlos Sanchez - 2007-2026 ${YELLOW}========${NC}"
 echo -e "${YELLOW}==========${NC} https://github.com/cargabsj175/neonatox-live-boot ${YELLOW}=========${NC}"
 
@@ -38,6 +40,10 @@ Usage:
 Options:
   --all             Build all available tools
   --toolname        Build specific tool
+  --package-all     Package built binaries into versioned zips (tools/dist/) + update manifest
+  --package TOOL    Package a single tool
+  --fetch-all       Download all prebuilt tools from GitHub releases
+  --fetch TOOL      Download a prebuilt tool from GitHub releases
   --list            List available tools
   --clean           Clean build artifacts inside tools/
   --version         Shows version
@@ -46,7 +52,9 @@ Options:
 Examples:
   ./build-tools.sh --all
   ./build-tools.sh --busybox
-  ./build-tools.sh --bash --busybox
+  ./build-tools.sh --package-all
+  ./build-tools.sh --fetch busybox
+  ./build-tools.sh --fetch-all
 
 EOF
 }
@@ -58,7 +66,7 @@ echo "Neonatox Live Boot Tools Builder - ${NLB_VERSION} Carlos Sanchez - 2007-20
 # ----------------------------------------------------------
 # AUTO DISCOVER AVAILABLE TOOLS
 # ----------------------------------------------------------
-AVAILABLE_TOOLS="$(cd "$TOOLS_DIR" 2>/dev/null && ls *.sh 2>/dev/null | sed 's/.sh$//')"
+AVAILABLE_TOOLS="$(cd "$TOOLS_DIR" 2>/dev/null && ls *.sh 2>/dev/null | sed 's/.sh$//' | grep -v -E '^(lib-pack|publish)$' | tr '\n' ' ')"
 
 # ----------------------------------------------------------
 # BUILD DISPATCHER
@@ -77,6 +85,8 @@ build_tool() {
         echo -e "${YELLOW}[INFO]${NC} busybox found in PATH, copying to output..."
         mkdir -p "$OUT_DIR"
         cp "$(command -v busybox)" "$OUT_DIR/busybox"
+        BUSYBOX_VER="$("$OUT_DIR/busybox" 2>&1 | head -1 | sed -n 's/.*BusyBox v\([0-9][0-9.]*\).*/\1/p')"
+        echo "${BUSYBOX_VER:-system}" > "$OUT_DIR/busybox.version"
         echo -e "${GREEN}[OK]${NC} busybox ready at $OUT_DIR/busybox"
         return 0
     fi
@@ -117,8 +127,11 @@ clean_tools() {
    echo -e "${YELLOW}[INFO]${NC} Removing extracted source dirs..."
     rm -rf src/*/ 2>/dev/null || true
 
-   echo -e "${YELLOW}[INFO]${NC} Removing build leftovers..."
+    echo -e "${YELLOW}[INFO]${NC} Removing build leftovers..."
     rm -f src/*.log src/*.tmp 2>/dev/null || true
+
+    echo -e "${YELLOW}[INFO]${NC} Removing packaged zips..."
+    rm -rf "$TOOLS_DIR/dist" 2>/dev/null || true
 
     cd "$SCRIPT_DIR"
 
@@ -132,7 +145,9 @@ clean_tools() {
 # ----------------------------------------------------------
 [ $# -eq 0 ] && { show_help; exit 1; }
 
-for arg in "$@"; do
+while [ $# -gt 0 ]; do
+    arg="$1"
+    shift
     case "$arg" in
         --all)
             for t in $AVAILABLE_TOOLS; do
@@ -146,7 +161,7 @@ for arg in "$@"; do
                 echo "  --$t"
             done
             exit 0
-        ;;        
+        ;;
         --version|-v)
             show_ver
             exit 0
@@ -157,6 +172,38 @@ for arg in "$@"; do
         ;;
         --clean)
             clean_tools
+            exit 0
+        ;;
+        --package-all)
+            for t in $AVAILABLE_TOOLS; do
+                if package_tool "$t"; then
+                    manifest_add "$t"
+                fi
+            done
+            exit 0
+        ;;
+        --package)
+            [ $# -eq 0 ] && { echo -e "${RED}[ERROR]${NC} --package requires a tool name"; exit 1; }
+            TOOL="$1"
+            shift
+            if package_tool "$TOOL"; then
+                manifest_add "$TOOL"
+            else
+                exit 1
+            fi
+            exit 0
+        ;;
+        --fetch-all)
+            for t in $AVAILABLE_TOOLS; do
+                fetch_tool "$t" || true
+            done
+            exit 0
+        ;;
+        --fetch)
+            [ $# -eq 0 ] && { echo -e "${RED}[ERROR]${NC} --fetch requires a tool name"; exit 1; }
+            TOOL="$1"
+            shift
+            fetch_tool "$TOOL" || exit 1
             exit 0
         ;;
         --*)

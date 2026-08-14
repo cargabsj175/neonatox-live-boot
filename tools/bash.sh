@@ -75,5 +75,7 @@ mkdir -p "$DEST"
 
 install -m755 bash "$DEST/bash"
 
+echo "$VERSION" > "$DEST/bash.version"
+
 echo -e "${GREEN}[DONE]${NC} Bash copied to initramfs"
 

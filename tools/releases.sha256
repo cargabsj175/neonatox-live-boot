@@ -1,0 +1,8 @@
+# tool toolver arch rev sha256 release_tag asset
+bash 5.2.37 x86_64 r1 9eb1ea92795157fbf6ce78ca171e2e9c61675aafa05164a4f27af1a370ba049c tools-0.9.1 neonatox-bash-5.2.37-x86_64-r1.zip
+btrfsprogs 7.0 x86_64 r1 530d4d7b48a12c94a63494533040c3b5bdf319005c55e42285b095ca6e1a1f02 tools-0.9.1 neonatox-btrfsprogs-7.0-x86_64-r1.zip
+busybox 1.37.0 x86_64 r1 798b4a43493dcc196308e4f44ac8494867655eb25036066f03dea91fe4432d51 tools-0.9.1 neonatox-busybox-1.37.0-x86_64-r1.zip
+dropbear 2026.91 x86_64 r1 fb2c6fef094abcca38b0b1d8331375ffaa23fbdedb82bafb4a42e597a5c681f0 tools-0.9.1 neonatox-dropbear-2026.91-x86_64-r1.zip
+e2fsprogs 1.47.1 x86_64 r1 a8a25bc11ad759912cf85aaf53822543cd6b8c4b11fc95e548f414e041257bc5 tools-0.9.1 neonatox-e2fsprogs-1.47.1-x86_64-r1.zip
+wpa_supplicant 2.11 x86_64 r1 c9db35706188fb214468a7c2cf2755b858f38d7651b080a77b7fa59c7ac51457 tools-0.9.1 neonatox-wpa_supplicant-2.11-x86_64-r1.zip
+zstd 1.5.6 x86_64 r1 def3e6173932fc6d842b28751544e1e4183b609f54271259d2b9fe8ddab95091 tools-0.9.1 neonatox-zstd-1.5.6-x86_64-r1.zip

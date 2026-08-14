@@ -595,7 +595,7 @@ if [ "$NETINSTALL_MODE" = true ]; then
     echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."
     rm -rf /tmp/nhopkg 2>/dev/null || true
     if [ "$SYSTEM_MUSL" = true ]; then
-        git clone --branch musl https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
+        git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
             echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
             exit 1
         }
@@ -621,7 +621,7 @@ if [ "$NETINSTALL_MODE" = true ]; then
         fi
         cd build 2>/dev/null || exit 1
         DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null || true
-        [ -d "$PWD/DESTDIR" ] && cp -r "$PWD/DESTDIR"/* "$EXTRA_DIR/nhopkg-install/" 2>/dev/null || true
+        [ -d "$PWD/DESTDIR" ] && { mkdir -p "$EXTRA_DIR/nhopkg-install" && cp -r "$PWD/DESTDIR"/* "$EXTRA_DIR/nhopkg-install/" 2>/dev/null || true; }
     )
     echo -e "${GREEN}[OK]${NC} nhopkg installed"
 

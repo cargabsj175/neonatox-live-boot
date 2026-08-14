@@ -594,17 +594,10 @@ if [ "$NETINSTALL_MODE" = true ]; then
     # nhopkg (clone + meson install)
     echo -e "${YELLOW}[INFO]${NC} Cloning nhopkg..."
     rm -rf /tmp/nhopkg 2>/dev/null || true
-    if [ "$SYSTEM_MUSL" = true ]; then
-        git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
+    git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
             echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
             exit 1
         }
-    else
-        git clone https://github.com/cargabsj175/neonatox-nhopkg.git /tmp/nhopkg 2>/dev/null || {
-            echo -e "${RED}[ERROR]${NC} nhopkg clone failed" >&2
-            exit 1
-        }
-    fi
     echo -e "${YELLOW}[INFO]${NC} Installing nhopkg..."
     (
         cd /tmp/nhopkg

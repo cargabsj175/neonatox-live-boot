@@ -608,9 +608,15 @@ if [ "$NETINSTALL_MODE" = true ]; then
                 -D repo-version=n27 \
                 -D repo-arch=x86_64-musl \
                 -D libc=musl \
-                -D git-branch=musl 2>/dev/null || true
+                -D git-branch=musl \
+                -D static-busybox=no \
+                -D static-zstd=no \
+                -D use-busybox=no 2>/dev/null || true
         else
-            meson setup build 2>/dev/null || true
+            meson setup build \
+                -D static-busybox=no \
+                -D static-zstd=no \
+                -D use-busybox=no 2>/dev/null || true
         fi
         cd build 2>/dev/null || exit 1
         DESTDIR="$PWD/DESTDIR" ninja install 2>/dev/null || true
